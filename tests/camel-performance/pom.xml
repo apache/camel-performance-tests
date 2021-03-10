@@ -29,7 +29,7 @@
     </parent>
 
     <artifactId>camel-performance</artifactId>
-    <name>Camel :: Performance Tests :: Performance</name>
+    <name>Camel Performance :: Tests :: Performance</name>
     <description>Performs cross component performance tests</description>
 
     <dependencyManagement>
