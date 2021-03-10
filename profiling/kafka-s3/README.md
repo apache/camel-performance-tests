@@ -1,4 +1,4 @@
-# camel-k-runtime-example-kafka-s3
+# Kafka to S3 with YAML and Camel-Quarkus
 
 build:
 ```shell script
