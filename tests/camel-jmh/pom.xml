@@ -29,7 +29,7 @@
     </parent>
 
     <artifactId>camel-jmh</artifactId>
-    <name>Camel :: Integration Tests :: JMH</name>
+    <name>Camel Performance :: Tests :: JMH</name>
     <description>Performs JMH performance tests</description>
 
     <dependencyManagement>
