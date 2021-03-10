@@ -34,6 +34,19 @@
     <packaging>pom</packaging>
     <name>Camel Performance :: Tests</name>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Add Camel BOM -->
+            <dependency>
+                <groupId>org.apache.camel</groupId>
+                <artifactId>camel-bom</artifactId>
+                <version>${camel.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <modules>
         <module>camel-jmh</module>
         <module>camel-performance</module>

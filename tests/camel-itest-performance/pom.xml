@@ -32,19 +32,6 @@
     <name>Camel Performance :: Tests :: Perfomance integration tests</name>
     <description>Tests camel performance aspects</description>
 
-    <dependencyManagement>
-        <dependencies>
-            <!-- Add Camel BOM -->
-            <dependency>
-                <groupId>org.apache.camel</groupId>
-                <artifactId>camel-bom</artifactId>
-                <version>${camel.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
 
         <dependency>

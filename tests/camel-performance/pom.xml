@@ -32,19 +32,6 @@
     <name>Camel Performance :: Tests :: Performance</name>
     <description>Performs cross component performance tests</description>
 
-    <dependencyManagement>
-        <dependencies>
-            <!-- Add Camel BOM -->
-            <dependency>
-                <groupId>org.apache.camel</groupId>
-                <artifactId>camel-bom</artifactId>
-                <version>${camel.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
         <!-- assuming camel is pulling aries 1.0.0, pull asm 4.0 first -->
         <dependency>

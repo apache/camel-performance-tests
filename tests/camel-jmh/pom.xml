@@ -32,19 +32,6 @@
     <name>Camel Performance :: Tests :: JMH</name>
     <description>Performs JMH performance tests</description>
 
-    <dependencyManagement>
-        <dependencies>
-            <!-- Add Camel BOM -->
-            <dependency>
-                <groupId>org.apache.camel</groupId>
-                <artifactId>camel-bom</artifactId>
-                <version>${camel.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
 
         <dependency>
@@ -98,7 +85,7 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
             <scope>test</scope>
-             <version>${log4j2-version}</version>
+            <version>${log4j2-version}</version>
         </dependency>
     </dependencies>
 
