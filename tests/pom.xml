@@ -37,6 +37,7 @@
     <modules>
         <module>camel-jmh</module>
         <module>camel-performance</module>
+        <module>camel-itest-performance</module>
     </modules>
 
 </project>
