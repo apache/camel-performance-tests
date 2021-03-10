@@ -36,6 +36,7 @@
 
     <modules>
         <module>camel-jmh</module>
+        <module>camel-performance</module>
     </modules>
 
 </project>
