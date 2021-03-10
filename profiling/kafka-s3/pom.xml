@@ -46,7 +46,7 @@
 
         <quarkus.version>1.11.1.Final</quarkus.version>
         <quarkus.container-image.build>true</quarkus.container-image.build>
-        <quarkus.container-image.group>quay.io/oscerd</quarkus.container-image.group>
+        <quarkus.container-image.group>quay.io/camel</quarkus.container-image.group>
         <quarkus.container-image.name>${project.artifactId}</quarkus.container-image.name>
 
         <camel-k-runtime.version>1.7.0-SNAPSHOT</camel-k-runtime.version>
