@@ -26,6 +26,17 @@ public class MyRouteBuilder extends RouteBuilder {
             // we can include a request body
             .setBody(constant("Hi from Camel"))
             .to("http://localhost:5678/")
-            .to("log:out?level=OFF");
+            // the bigger the route the more object allocations
+            // so lets test with 10 more steps
+            .to("log:out0?level=OFF")
+            .to("log:out1?level=OFF")
+            .to("log:out2?level=OFF")
+            .to("log:out3?level=OFF")
+            .to("log:out4?level=OFF")
+            .to("log:out5?level=OFF")
+            .to("log:out6?level=OFF")
+            .to("log:out7?level=OFF")
+            .to("log:out8?level=OFF")
+            .to("log:out9?level=OFF");
     }
 }
