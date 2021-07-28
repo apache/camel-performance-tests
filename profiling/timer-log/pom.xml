@@ -62,6 +62,10 @@
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-log</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-jfr</artifactId>
+        </dependency>
 
         <!-- logging -->
         <dependency>
