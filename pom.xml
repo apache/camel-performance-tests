@@ -99,7 +99,7 @@
         <maven-javadoc-plugin-version>3.0.1</maven-javadoc-plugin-version>
         <exec-maven-plugin-version>1.6.0</exec-maven-plugin-version>
         <surefire.version>${maven-surefire-plugin-version}</surefire.version>
-        <jmh-version>1.32</jmh-version>
+        <jmh-version>1.33</jmh-version>
     </properties>
 
     <repositories>
