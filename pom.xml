@@ -100,6 +100,7 @@
         <exec-maven-plugin-version>1.6.0</exec-maven-plugin-version>
         <surefire.version>${maven-surefire-plugin-version}</surefire.version>
         <jmh-version>1.33</jmh-version>
+        <osgi.version>6.0.0</osgi.version>
     </properties>
 
     <repositories>
