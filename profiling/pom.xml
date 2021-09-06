@@ -37,6 +37,7 @@
     <modules>
         <module>timer-log</module>
         <module>timer-http</module>
+        <module>kafka-s3</module>
     </modules>
 
 </project>
