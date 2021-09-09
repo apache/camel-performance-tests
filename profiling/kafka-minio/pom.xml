@@ -31,8 +31,8 @@
     <artifactId>kafka-minio</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Camel Performance :: Profiling :: Kafka S3</name>
-    <description>A Kafka to S3 containeraized application to show profiling practices</description>
+    <name>Camel Performance :: Profiling :: Kafka Minio</name>
+    <description>A Kafka to Minio containeraized application to show profiling practices</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
