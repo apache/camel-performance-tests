@@ -13,7 +13,7 @@ docker run --rm -ti \
     -v $PWD/data:/etc/camel:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/camel-k-runtime-example-kafka-s3:1.8.0-jvm
+    quay.io/oscerd/kafka-s3:1.0-SNAPSHOT-jvm
 ```
 
 You'll need a running Kafka broker locally on your host.
@@ -27,7 +27,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/camel-k-runtime-example-kafka-s3:1.8.0-jvm
+    quay.io/oscerd/kafka-s3:1.0-SNAPSHOT-jvm
 ```
 
 You'll need a running Kafka broker locally on your host.
