@@ -1,5 +1,39 @@
 #!/bin/bash
-for i in {1..10000}
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+  key="$1"
+
+  case $key in
+    -n|--number)
+      NUMBER="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -t|--topic)
+      TOPIC="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -p|--payload)
+      PAYLOAD="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --default)
+      DEFAULT=YES
+      shift # past argument
+      ;;
+    *)    # unknown option
+      POSITIONAL+=("$1") # save it in an array for later
+      shift # past argument
+      ;;
+  esac
+done
+
+set -- "${POSITIONAL[@]}" # restore positional parameters
+
+for i in {1..$NUMBER}
 do
-   echo "payload" | $KAFKACAT_PATH -b localhost:9092 -t testtopic -H "file=$(cat /dev/urandom | tr -dc '[:alpha:]' | fold -w ${1:-20} | head -n 1)"
+   echo $PAYLOAD | $KAFKACAT_PATH -b localhost:9092 -t $TOPIC -H "file=zzzz"
 done
