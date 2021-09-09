@@ -56,11 +56,13 @@ You'll need also kafkacat to be able to inject the filename header and use the b
 export KAFKACAT_PATH=<path_to_your_kafkacat>
 ```
 
-And now run the burst script
+And now run the burst script.
+
+This command for example will send 1000 messages with payload "payload" to the topic "testtopic"
 
 ```shell script
 cd script/
-> ./burst.sh
+> ./burst.sh -n 1000 -t testtopic -p "payload"
 ```
 
 
