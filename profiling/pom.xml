@@ -38,6 +38,7 @@
         <module>timer-log</module>
         <module>timer-http</module>
         <module>kafka-s3</module>
+        <module>kafka-minio</module>
     </modules>
 
 </project>
