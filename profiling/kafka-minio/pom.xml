@@ -147,7 +147,7 @@
             </activation>
             <properties>
                 <quarkus.jib.base-jvm-image>adoptopenjdk/openjdk11:ubi-minimal</quarkus.jib.base-jvm-image>
-                <quarkus.jib.jvm-entrypoint>java,-XX:+UseShenandoahGC,-Xlog:gc,-jar,/work/quarkus-run.jar</quarkus.jib.jvm-entrypoint>
+                <quarkus.jib.jvm-entrypoint>java,-XX:+UseShenandoahGC,-Xlog:gc,-Xmx64m,-jar,/work/quarkus-run.jar</quarkus.jib.jvm-entrypoint>
                 <quarkus.container-image.tag>${project.version}-jvm</quarkus.container-image.tag>
             </properties>
         </profile>
