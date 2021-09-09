@@ -50,9 +50,18 @@ and check the status
 docker exec -it <container_id> jcmd 1 JFR.check
 ```
 
-You'll need also kafkacat to be able to inject the filename header:
+You'll need also kafkacat to be able to inject the filename header and use the burst script
 
+```shell script
+export KAFKACAT_PATH=<path_to_your_kafkacat>
 ```
-echo "payload" | ./kafkacat -b localhost:9092 -t testtopic -H "file=$(cat /dev/urandom | tr -dc '[:alpha:]' | fold -w ${1:-20} | head -n 1)"
+
+And now run the burst script
+
+```shell script
+cd script/
+> ./burst.sh
 ```
+
+
 
