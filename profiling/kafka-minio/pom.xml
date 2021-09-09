@@ -101,10 +101,6 @@
             <groupId>org.apache.camel.quarkus</groupId>
             <artifactId>camel-quarkus-minio</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.apache.camel.quarkus</groupId>
-            <artifactId>camel-quarkus-kamelet-reify</artifactId>
-        </dependency>
        <dependency>
             <groupId>org.apache.camel.quarkus</groupId>
             <artifactId>camel-quarkus-yaml-dsl</artifactId>
