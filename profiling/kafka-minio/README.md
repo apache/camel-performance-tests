@@ -38,6 +38,8 @@ build:
 ./mvnw clean package
 ```
 
+At this point you're able to run the example:
+
 docker:
 ```shell script
 docker run --rm -ti \
