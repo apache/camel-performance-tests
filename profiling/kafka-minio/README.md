@@ -75,6 +75,24 @@ and check the status
 docker exec -it <container_id> jcmd 1 JFR.check
 ```
 
+## Tuning Container
+
+You could also modify the resources of your container with memory and cpu defined while running it
+
+docker:
+```shell script
+docker run --rm -ti \
+    -v $PWD/data:/etc/camel:Z \
+    -v $PWD/jfr:/work/jfr:Z \ 
+    -e CAMEL_K_CONF=/etc/camel/application.properties \ 
+    --network="host" \ 
+    -m 128m \ 
+    --cpu-quota="25000" \ 
+    quay.io/oscerd/kafka-minio:1.0-SNAPSHOT-jvm
+```
+
+In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
+
 ## Send messages to Kafka
 
 You'll need also kafkacat to be able to inject the filename header and use the burst script
