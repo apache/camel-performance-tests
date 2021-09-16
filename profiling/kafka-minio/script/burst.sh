@@ -35,5 +35,5 @@ set -- "${POSITIONAL[@]}" # restore positional parameters
 
 for i in {1..$NUMBER}
 do
-   echo $PAYLOAD | $KAFKACAT_PATH -b localhost:9092 -t $TOPIC -H "file=zzzz"
+   echo $PAYLOAD | $KAFKACAT_PATH -b localhost:9092 -t $TOPIC -H "file=$(cat /dev/urandom | tr -dc '[:alpha:]' | fold -w ${1:-20} | head -n 1)"
 done
