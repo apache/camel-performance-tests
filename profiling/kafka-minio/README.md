@@ -75,6 +75,8 @@ and check the status
 docker exec -it <container_id> jcmd 1 JFR.check
 ```
 
+## Send messages to Kafka
+
 You'll need also kafkacat to be able to inject the filename header and use the burst script
 
 ```shell script
