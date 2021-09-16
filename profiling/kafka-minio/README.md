@@ -22,8 +22,6 @@ docker run --rm -ti \
     quay.io/oscerd/kafka-minio:1.0-SNAPSHOT-jvm
 ```
 
-You'll need a running Kafka broker locally on your host.
-
 ## Enabling JFR 
 
 docker:
@@ -62,7 +60,7 @@ This command for example will send 1000 messages with payload "payload" to the t
 
 ```shell script
 cd script/
-> ./burst.sh -n 1000 -t testtopic -p "payload"
+> ./burst.sh -b localhost:9092 -n 1000 -t testtopic -p "payload"
 ```
 
 
