@@ -20,6 +20,11 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    -b|--broker)
+      BROKER="$2"
+      shift # past argument
+      shift # past value
+      ;;
     --default)
       DEFAULT=YES
       shift # past argument
@@ -35,5 +40,5 @@ set -- "${POSITIONAL[@]}" # restore positional parameters
 
 for i in $(seq 1 $NUMBER)
 do
-   echo $PAYLOAD | $KAFKACAT_PATH -b localhost:9092 -t $TOPIC -H "file=$(cat /dev/urandom | tr -dc '[:alpha:]' | fold -w ${1:-20} | head -n 1)"
+   echo $PAYLOAD | $KAFKACAT_PATH -b $BROKER -t $TOPIC -H "file=$(cat /dev/urandom | tr -dc '[:alpha:]' | fold -w ${1:-20} | head -n 1)"
 done
