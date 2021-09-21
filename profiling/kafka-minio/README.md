@@ -93,6 +93,10 @@ docker run --rm -ti \
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
 
+## HEAP Sizing
+
+In the pom you can also set a different Heap Size. The default is 64 Mb.
+
 ## Send messages to Kafka
 
 You'll need also kafkacat to be able to inject the filename header and use the burst script
