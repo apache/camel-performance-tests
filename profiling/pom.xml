@@ -39,6 +39,7 @@
         <module>timer-http</module>
         <module>kafka-s3</module>
         <module>kafka-minio</module>
+        <module>kafka-minio-exchange-pooling</module>
     </modules>
 
 </project>
