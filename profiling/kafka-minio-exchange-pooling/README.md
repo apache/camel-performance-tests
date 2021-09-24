@@ -87,6 +87,8 @@ docker run --rm -ti \
     quay.io/oscerd/kafka-minio-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
+Where async profiler path is the path of your async profiler on your host machine.
+
 Now you can start Async Profiler with the following command
 
 ```
