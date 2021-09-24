@@ -38,6 +38,13 @@ build:
 ./mvnw clean package
 ```
 
+If you want to have JFR enable from the beginning:
+
+build:
+```shell script
+./mvnw clean package -Pjfr
+```
+
 At this point you're able to run the example:
 
 docker:
@@ -49,7 +56,7 @@ docker run --rm -ti \
     quay.io/oscerd/kafka-minio-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
-## Enabling JFR 
+## Enabling JFR while running application
 
 docker:
 ```shell script
@@ -73,7 +80,7 @@ and check the status
 docker exec -it <container_id> jcmd 1 JFR.check
 ```
 
-## Enabling Async Profiler 
+## Enabling Async Profiler while running application
 
 docker:
 ```shell script
