@@ -61,8 +61,6 @@ docker run --rm -ti \
     quay.io/oscerd/kafka-minio:1.0-SNAPSHOT-jvm
 ```
 
-You'll need a running Kafka broker locally on your host.
-
 Now you can start JFR with the following command
 
 ```
