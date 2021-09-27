@@ -69,3 +69,29 @@ and check the status
 docker exec -it <container_id> jcmd 1 JFR.check
 ```
 
+## Enabling Async Profiler while running application
+
+docker:
+```shell script
+docker run --rm -ti \
+    -v $PWD/data:/etc/camel:Z \
+    -v async_profiler_path:/work/async-profiler:Z \
+    -e CAMEL_K_CONF=/etc/camel/application.properties \
+    --network="host" \
+    quay.io/oscerd/kafka-s3:1.0-SNAPSHOT-jvm
+```
+
+Where async profiler path is the path of your async profiler on your host machine.
+
+Now you can start Async Profiler with the following command
+
+```
+docker exec -it <container_id> /work/async-profiler/profiler.sh -e alloc -d 30 -f /work/async-profiler/alloc_profile.html 1
+```
+
+This command while create an allocation flamegraph for the duration of 30 second of the running application.
+
+The privileged option for running the docker container is the fastest way to have perf events syscall enabled.
+
+If you don't want to use privileged approach, you can have a look at the basic configuration of async profiler (https://github.com/jvm-profiling-tools/async-profiler/wiki/Basic-Usage)
+
