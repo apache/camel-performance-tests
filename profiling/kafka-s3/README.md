@@ -95,3 +95,21 @@ The privileged option for running the docker container is the fastest way to hav
 
 If you don't want to use privileged approach, you can have a look at the basic configuration of async profiler (https://github.com/jvm-profiling-tools/async-profiler/wiki/Basic-Usage)
 
+## Tuning Container
+
+You could also modify the resources of your container with memory and cpu defined while running it
+
+docker:
+```shell script
+docker run --rm -ti \
+    -v $PWD/data:/etc/camel:Z \
+    -v $PWD/jfr:/work/jfr:Z \ 
+    -e CAMEL_K_CONF=/etc/camel/application.properties \ 
+    --network="host" \ 
+    -m 128m \ 
+    --cpu-quota="25000" \ 
+    quay.io/oscerd/kafka-minio-exchange-pooling:1.0-SNAPSHOT-jvm
+```
+
+In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
+
