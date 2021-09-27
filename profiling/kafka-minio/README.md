@@ -38,6 +38,13 @@ build:
 ./mvnw clean package
 ```
 
+If you want to have JFR enable from the beginning:
+
+build:
+```shell script
+./mvnw clean package -Pjfr
+```
+
 At this point you're able to run the example:
 
 docker:
