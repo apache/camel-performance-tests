@@ -113,3 +113,29 @@ docker run --rm -ti \
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
 
+## Send messages to Kafka
+
+You'll need also kafkacat to be able to inject the filename header and use the burst script
+
+```shell script
+export KAFKACAT_PATH=<path_to_your_kafkacat>
+```
+
+And now run the burst script.
+
+This command for example will send 1000 messages with payload "payload" to the topic "testtopic"
+
+```shell script
+cd script/
+> ./burst.sh -b localhost:9092 -n 1000 -t testtopic -p "payload"
+```
+
+You could also tests this approach with multiple producers, through the multiburst script
+
+```shell script
+cd script/
+> ./multiburst.sh -s 5 -b localhost:9092 -n 1000 -t testtopic -p "payload"
+```
+
+This command will run 5 burst script with 1000 messages each one with payload "payload" to the Kafka instance running on localhost:9092 and the topic "testtopic"
+
