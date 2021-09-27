@@ -108,7 +108,7 @@ docker run --rm -ti \
     --network="host" \ 
     -m 128m \ 
     --cpu-quota="25000" \ 
-    quay.io/oscerd/kafka-minio-exchange-pooling:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/kafka-s3:1.0-SNAPSHOT-jvm
 ```
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
