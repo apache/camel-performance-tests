@@ -154,5 +154,14 @@ cd script/
 
 This command will run 5 burst script with 1000 messages each one with payload "payload" to the Kafka instance running on localhost:9092 and the topic "testtopic"
 
+## Monitoring the number of messages into NATS topics
+
+You can run the following command to check the actual value
+
+```shell script
+curl -s http://localhost:8222/varz | jq '.["in_msgs"]'
+49666
+```
+
 
 
