@@ -41,6 +41,7 @@
         <module>kafka-minio</module>
         <module>kafka-minio-exchange-pooling</module>
         <module>kafka-nats</module>
+        <module>kafka-nats-exchange-pooling</module>
     </modules>
 
 </project>
