@@ -139,7 +139,7 @@ In the pom you can also set a different Heap Size. The default is 64 Mb.
 You'll need also kafkacat to be able to inject the filename header and use the burst script
 
 ```shell script
-export KAFKACAT_PATH=<path_to_your_kafkacat>
+kcat -b localhost:9092 -t testtopic
 ```
 
 
