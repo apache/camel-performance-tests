@@ -59,7 +59,7 @@ docker run --rm -ti \
     -v $PWD/data:/etc/camel:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 ## Enabling JFR 
@@ -71,7 +71,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 Now you can start JFR with the following command
@@ -95,7 +95,7 @@ docker run --rm -ti \
     -v async_profiler_path:/work/async-profiler:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 Where async profiler path is the path of your async profiler on your host machine.
@@ -123,16 +123,16 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \ 
     -e CAMEL_K_CONF=/etc/camel/application.properties \ 
     --network="host" \ 
-    -m 128m \ 
+    -m 256m \ 
     --cpu-quota="25000" \ 
-    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
-In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
+In this case we are allocating 256 Mb Memory to the container and 0.25% cpus.
 
 ## HEAP Sizing
 
-In the pom you can also set a different Heap Size. The default is 64 Mb.
+In the pom you can also set a different Heap Size. The default is 256 Mb.
 
 ## Read messages from Kafka
 
