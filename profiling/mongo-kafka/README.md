@@ -9,7 +9,7 @@ docker run --net=host --name mongodb -e MONGO_INITDB_ROOT_USERNAME=mongoadmin -e
 Now you need to setup Database and collection:
 
 ```shell script
-cat scripts/populate.js | docker exec -i <container_id> mongo -u mongoadmin -p secret --quiet
+docker exec -i <container_id> mongo -u mongoadmin -p secret --quiet < scripts/populate.js 
 ```
 
 The MongoDB setup is done now.
