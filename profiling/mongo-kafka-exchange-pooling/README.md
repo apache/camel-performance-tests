@@ -1,4 +1,4 @@
-# MongoDB to Kafka
+# MongoDB to Kafka with Exchange Pooling
 
 First of all run the command to start MongoDB
 
