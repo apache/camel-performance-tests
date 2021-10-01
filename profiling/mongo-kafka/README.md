@@ -1,4 +1,4 @@
-# Kafka to Minio
+# MongoDB to Kafka
 
 First of all run the command to start MongoDB
 
