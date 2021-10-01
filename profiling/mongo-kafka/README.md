@@ -9,12 +9,7 @@ docker run --net=host --name mongodb -e MONGO_INITDB_ROOT_USERNAME=mongoadmin -e
 Now you need to setup Database and collection:
 
 ```shell script
-docker exec -it <container_id> mongo -u mongoadmin -p secret
-> use test
-switched to db test
-> db.createCollection("log", { capped : true, size : 5242880, max : 50000 } )
-{ "ok" : 1 }
-> 
+cat scripts/populate.js | docker exec -i <container_id> mongo -u mongoadmin -p secret --quiet
 ```
 
 The MongoDB setup is done now.
@@ -64,7 +59,7 @@ docker run --rm -ti \
     -v $PWD/data:/etc/camel:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-mongo:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
 ```
 
 ## Enabling JFR 
@@ -76,7 +71,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-mongo:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
 ```
 
 Now you can start JFR with the following command
@@ -100,7 +95,7 @@ docker run --rm -ti \
     -v async_profiler_path:/work/async-profiler:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-mongo:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
 ```
 
 Where async profiler path is the path of your async profiler on your host machine.
@@ -130,7 +125,7 @@ docker run --rm -ti \
     --network="host" \ 
     -m 128m \ 
     --cpu-quota="25000" \ 
-    quay.io/oscerd/kafka-mongo:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/mongo-kafka:1.0-SNAPSHOT-jvm
 ```
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
@@ -139,7 +134,7 @@ In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
 
 In the pom you can also set a different Heap Size. The default is 64 Mb.
 
-## Send messages to Kafka
+## Read messages from Kafka
 
 You'll need also kafkacat to be able to inject the filename header and use the burst script
 
@@ -147,31 +142,6 @@ You'll need also kafkacat to be able to inject the filename header and use the b
 export KAFKACAT_PATH=<path_to_your_kafkacat>
 ```
 
-And now run the burst script.
-
-This command for example will send 1000 messages with payload "payload" to the topic "testtopic"
-
-```shell script
-cd script/
-> ./burst.sh -b localhost:9092 -n 1000 -t testtopic -p "payload"
-```
-
-You could also tests this approach with multiple producers, through the multiburst script
-
-```shell script
-cd script/
-> ./multiburst.sh -s 5 -b localhost:9092 -n 1000 -t testtopic -p "payload"
-```
-
-In both the example the payload needs to be a JSON.
-
-For example a good payload could be 
-
-```shell script
-./burst.sh -b localhost:9092 -t testtopic -n 50000 -p '{"name": "Ada Lovelace", "age": 205}'
-```
-
-This command will run 5 burst script with 1000 messages each one with payload "{"name": "Ada Lovelace", "age": 205}" to the Kafka instance running on localhost:9092 and the topic "testtopic"
 
 
 
