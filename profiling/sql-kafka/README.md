@@ -16,7 +16,7 @@ And run the following scripts
 
 ```shell script
 docker exec -i psql psql -U postgres < table.sql
-for i in {1..20}; do docker exec -i psql psql -U postgres < populate.sql; done
+docker exec -i psql psql -U postgres < populate-30000.sql
 ```
 
 In this case I'm inserting 20 rows.
