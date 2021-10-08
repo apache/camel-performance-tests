@@ -19,7 +19,7 @@ docker exec -i psql psql -U postgres < table.sql
 docker exec -i psql psql -U postgres < populate-30000.sql
 ```
 
-In this case I'm inserting 20 rows.
+In this case I'm inserting 30000 rows, through the populate-30000.sql file.
 
 The PostgreSQL setup is done now.
 
