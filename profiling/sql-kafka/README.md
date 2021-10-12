@@ -12,6 +12,7 @@ There are different scripts:
   - table.sql
   - populate-30000.sql
   - populate-40000.sql
+  - populate-50000.sql
 
 And run the following scripts
 
