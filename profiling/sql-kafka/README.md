@@ -8,9 +8,10 @@ docker run --name psql -e POSTGRES_PASSWORD=secret -d postgres
 
 Now you need to setup Database and collection:
 
-There are two different scripts:
+There are different scripts:
   - table.sql
-  - populate.sql
+  - populate-30000.sql
+  - populate-40000.sql
 
 And run the following scripts
 
