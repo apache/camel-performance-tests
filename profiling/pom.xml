@@ -48,7 +48,7 @@
         <module>kafka-postgresql-exchange-pooling</module>
         <module>mongo-kafka</module>
         <module>mongo-kafka-exchange-pooling</module>
-        <module>sql-kafka</module>
+        <module>postgresql-kafka</module>
         <module>sql-kafka-exchange-pooling</module>
     </modules>
 
