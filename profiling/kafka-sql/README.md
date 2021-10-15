@@ -74,7 +74,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-nats:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/kafka-sql:1.0-SNAPSHOT-jvm
 ```
 
 Now you can start JFR with the following command
