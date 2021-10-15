@@ -28,11 +28,11 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>kafka-sql</artifactId>
+    <artifactId>kafka-postgresql</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Camel Performance :: Profiling :: Kafka SQL</name>
-    <description>A Kafka to SQL containeraized application to show profiling practices</description>
+    <name>Camel Performance :: Profiling :: Kafka PostgreSQL</name>
+    <description>A Kafka to PostgreSQL containeraized application to show profiling practices</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
