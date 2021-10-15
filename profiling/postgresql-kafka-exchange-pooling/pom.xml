@@ -28,11 +28,11 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>sql-kafka-exchange-pooling</artifactId>
+    <artifactId>postgresql-kafka-exchange-pooling</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Camel Performance :: Profiling :: SQL Kafka Exchange Pooling</name>
-    <description>A SQL to Kafka with Exchange Pooling containeraized application to show profiling practices</description>
+    <name>Camel Performance :: Profiling :: PostgreSQL Kafka Exchange Pooling</name>
+    <description>A PostgreSQL to Kafka with Exchange Pooling containeraized application to show profiling practices</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
