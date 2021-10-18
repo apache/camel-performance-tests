@@ -46,6 +46,7 @@
         <module>kafka-nats-exchange-pooling</module>
         <module>kafka-postgresql</module>
         <module>kafka-postgresql-exchange-pooling</module>
+        <module>minio-kafka</module>
         <module>mongo-kafka</module>
         <module>mongo-kafka-exchange-pooling</module>
         <module>postgresql-kafka</module>
