@@ -22,7 +22,7 @@
         bucketName: "ckc"
         accessKey: "minio"
         secretKey: "miniostorage"
-        endpoint: "http://192.168.1.19:9000"
+        endpoint: "http://localhost:9000"
     steps:
       - to: 
           uri: "kamelet:kafka-not-secured-sink"
