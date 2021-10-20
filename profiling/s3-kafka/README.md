@@ -1,32 +1,17 @@
-# Minio to Kafka
+# S3 to Kafka
 
-First of all run the command to start Minio
+First of all install the AWS Cli https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html
 
-```shell script
-docker run -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=miniostorage --net=host minio/minio server /data --console-address ":9001"
-```
+Now we are able to use the s3-bulk script during the profiling.
 
-In the routes.yaml file, set correctly the Minio credentials for your bucket.
+In the routes.yaml file, set correctly the AWS S3 credentials for your bucket.
 
-Download the minio client too:
+Create the camel-kafka-connector bucket on your AWS Account.
 
-```shell script
-wget https://dl.min.io/client/mc/release/linux-amd64/mc
-chmod +x mc
-sudo mv mc /usr/local/bin
-```
-
-Now we need to set up an alias for our bucket and login
+Now we can use the s3-bulk.sh script
 
 ```shell script
-mc alias set minio http://127.0.0.1:9000 minio miniostorage
-mc mb minio/ckc
-```
-
-Now we can use the minio-bulk.sh script
-
-```shell script
-./minio-bulk.sh -f msg1.txt -b ckc -n 10000
+./s3-bulk.sh -f msg1.txt -b camel-kafka-connector -n 10000
 ```
 
 Also you'll need to run a Kafka cluster to point to. In this case you could use an ansible role like https://github.com/oscerd/kafka-ansible-role
@@ -74,7 +59,7 @@ docker run --rm -ti \
     -v $PWD/data:/etc/camel:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/minio-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/s3-kafka:1.0-SNAPSHOT-jvm
 ```
 
 ## Enabling JFR 
@@ -86,7 +71,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/minio-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/s3-kafka:1.0-SNAPSHOT-jvm
 ```
 
 Now you can start JFR with the following command
@@ -110,7 +95,7 @@ docker run --rm -ti \
     -v async_profiler_path:/work/async-profiler:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/minio-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/s3-kafka:1.0-SNAPSHOT-jvm
 ```
 
 Where async profiler path is the path of your async profiler on your host machine.
@@ -140,14 +125,14 @@ docker run --rm -ti \
     --network="host" \ 
     -m 128m \ 
     --cpu-quota="25000" \ 
-    quay.io/oscerd/minio-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/s3-kafka:1.0-SNAPSHOT-jvm
 ```
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
 
 ## HEAP Sizing
 
-In the pom you can also set a different Heap Size. The default is 64 Mb.
+In the pom you can also set a different Heap Size. The default is 128 Mb.
 
 
 
