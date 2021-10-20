@@ -52,6 +52,7 @@
         <module>mongo-kafka-exchange-pooling</module>
         <module>postgresql-kafka</module>
         <module>postgresql-kafka-exchange-pooling</module>
+        <module>s3-kafka</module>
     </modules>
 
 </project>
