@@ -132,13 +132,14 @@ In the pom you can also set a different Heap Size. The default is 64 Mb.
 
 ## Sending Messages to NATS
 
-You should use nats-pub command and run something like
+You need the nats-pub bash command installed and run
 
 ```shell script
-for i in {1..50000}; do nats-pub -s <servers> <subject_name> "Hello from Nats"; done
+./nats-bulk.sh -b 127.0.0.1 -t test.nats -p "Test" -n 50000
 ```
 
-You'll send 50000 messages to <subject_name> NATS Topic.
+
+You'll send 50000 messages to test.nats Topic with payload "Test".
 
 ## Read messages from Kafka
 
