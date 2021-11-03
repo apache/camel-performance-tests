@@ -1,4 +1,4 @@
-# NATS to Kafka
+# NATS to Kafka with Exchange Pooling
 
 First of all run the command to start NATS
 
@@ -55,7 +55,7 @@ docker run --rm -ti \
     -v $PWD/data:/etc/camel:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/nats-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/nats-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 ## Enabling JFR 
@@ -67,7 +67,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/nats-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/nats-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 Now you can start JFR with the following command
@@ -91,7 +91,7 @@ docker run --rm -ti \
     -v async_profiler_path:/work/async-profiler:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/nats-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/nats-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 Where async profiler path is the path of your async profiler on your host machine.
@@ -121,7 +121,7 @@ docker run --rm -ti \
     --network="host" \ 
     -m 128m \ 
     --cpu-quota="25000" \ 
-    quay.io/oscerd/nats-kafka:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/nats-kafka-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
