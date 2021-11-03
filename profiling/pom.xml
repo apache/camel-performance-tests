@@ -38,6 +38,7 @@
         <module>timer-log</module>
         <module>timer-http</module>
         <module>kafka-s3</module>
+        <module>kafka-azure-storage-blob</module>
         <module>kafka-minio</module>
         <module>kafka-minio-exchange-pooling</module>
         <module>kafka-mongo</module>
