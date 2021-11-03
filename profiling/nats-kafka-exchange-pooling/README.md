@@ -138,7 +138,6 @@ You need the nats-pub bash command installed and run
 ./nats-bulk.sh -b 127.0.0.1 -t test.nats -p "Test" -n 50000
 ```
 
-
 You'll send 50000 messages to test.nats Topic with payload "Test".
 
 ## Read messages from Kafka
