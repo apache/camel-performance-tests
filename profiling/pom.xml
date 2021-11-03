@@ -52,6 +52,7 @@
         <module>mongo-kafka</module>
         <module>mongo-kafka-exchange-pooling</module>
         <module>nats-kafka</module>
+        <module>nats-kafka-exchange-pooling</module>
         <module>postgresql-kafka</module>
         <module>postgresql-kafka-exchange-pooling</module>
         <module>s3-kafka</module>
