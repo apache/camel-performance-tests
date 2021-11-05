@@ -1,6 +1,6 @@
 # Kafka to Azure Storage Blob with Exchange Pooling
 
-In the routes.yaml file, set correctly the Azure credentials for storage blob.
+In the application.properties file, set correctly the Azure credentials for storage blob.
 
 Also you'll need to run a Kafka cluster to point to. In this case you could use an ansible role like https://github.com/oscerd/kafka-ansible-role
 
