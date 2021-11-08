@@ -24,20 +24,38 @@
 
     <parent>
         <groupId>org.apache.camel.tests</groupId>
-        <artifactId>camel-tests-parent</artifactId>
+        <artifactId>profiling</artifactId>
         <version>1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>profiling</artifactId>
+    <artifactId>profiling-kafka-parent</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Camel Performance :: Profiling</name>
+    <name>Camel Performance :: Profiling :: Kafka Parent</name>
 
     <modules>
-        <module>timer-log</module>
-        <module>timer-http</module>
-        <module>kafka</module>
+        <module>kafka-s3</module>
+        <module>kafka-azure-storage-blob</module>
+        <module>kafka-azure-storage-blob-exchange-pooling</module>
+        <module>kafka-minio</module>
+        <module>kafka-minio-exchange-pooling</module>
+        <module>kafka-mongo</module>
+        <module>kafka-mongo-exchange-pooling</module>
+        <module>kafka-nats</module>
+        <module>kafka-nats-exchange-pooling</module>
+        <module>kafka-postgresql</module>
+        <module>kafka-postgresql-exchange-pooling</module>
+        <module>minio-kafka</module>
+        <module>minio-kafka-exchange-pooling</module>
+        <module>mongo-kafka</module>
+        <module>mongo-kafka-exchange-pooling</module>
+        <module>nats-kafka</module>
+        <module>nats-kafka-exchange-pooling</module>
+        <module>postgresql-kafka</module>
+        <module>postgresql-kafka-exchange-pooling</module>
+        <module>s3-kafka</module>
+        <module>s3-kafka-exchange-pooling</module>
     </modules>
 
 </project>
