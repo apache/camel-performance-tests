@@ -21,7 +21,7 @@
 
     <parent>
         <groupId>org.apache.camel.tests</groupId>
-        <artifactId>profiling</artifactId>
+        <artifactId>profiling-kafka-pooling</artifactId>
         <version>1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
