@@ -1,4 +1,4 @@
-# Kafka to SQS
+# Kafka to SQS with Exchange Pooling
 
 In the routes.yaml file, set correctly the AWS credentials for your SQS Queue. The queue must exist ahead of time.
 
@@ -38,7 +38,7 @@ docker run --rm -ti \
     -v $PWD/data:/etc/camel:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-sqs:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/kafka-sqs-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 You'll need a running Kafka broker locally on your host.
@@ -52,7 +52,7 @@ docker run --rm -ti \
     -v $PWD/jfr:/work/jfr:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-sqs:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/kafka-sqs-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 You'll need a running Kafka broker locally on your host.
@@ -78,7 +78,7 @@ docker run --rm -ti \
     -v async_profiler_path:/work/async-profiler:Z \
     -e CAMEL_K_CONF=/etc/camel/application.properties \
     --network="host" \
-    quay.io/oscerd/kafka-sqs:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/kafka-sqs-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 Where async profiler path is the path of your async profiler on your host machine.
@@ -108,7 +108,7 @@ docker run --rm -ti \
     --network="host" \ 
     -m 128m \ 
     --cpu-quota="25000" \ 
-    quay.io/oscerd/kafka-sqs:1.0-SNAPSHOT-jvm
+    quay.io/oscerd/kafka-sqs-exchange-pooling:1.0-SNAPSHOT-jvm
 ```
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
