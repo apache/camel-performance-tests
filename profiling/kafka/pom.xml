@@ -36,6 +36,7 @@
 
     <modules>
         <module>kafka-s3</module>
+        <module>kafka-s3-exchange-pooling</module>
         <module>kafka-sqs</module>
         <module>kafka-sqs-exchange-pooling</module>
         <module>kafka-azure-storage-blob</module>
