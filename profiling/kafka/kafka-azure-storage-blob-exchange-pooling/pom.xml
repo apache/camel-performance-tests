@@ -34,6 +34,10 @@
     <name>Camel Performance :: Profiling :: Kafka Azure Storage Blob Exchange Pooling</name>
     <description>A Kafka to Azure Storage Blob with Exchange Pooling containeraized application to show profiling practices</description>
 
+    <properties>
+       <tcnative.version>2.0.43.Final</tcnative.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -63,6 +67,11 @@
             <groupId>org.apache.camel.kamelets</groupId>
             <artifactId>camel-kamelets-catalog</artifactId>
             <version>${camel-kamelets-catalog.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-tcnative-boringssl-static</artifactId>
+            <version>${tcnative.version}</version>
         </dependency>
     </dependencies>
 
