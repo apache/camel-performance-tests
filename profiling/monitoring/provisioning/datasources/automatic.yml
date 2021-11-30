@@ -1,0 +1,13 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: SimpleJson
+    orgId: 1
+
+datasources:
+- name: SimpleJson
+  type: grafana-simple-json-datasource
+  url: http://localhost:8080
+  enabled: true
+  editable: true
+  isDefault: true
