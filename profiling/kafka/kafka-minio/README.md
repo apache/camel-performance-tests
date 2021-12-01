@@ -154,5 +154,23 @@ cd script/
 
 This command will run 5 burst script with 1000 messages each one with payload "payload" to the Kafka instance running on localhost:9092 and the topic "testtopic"
 
+### Monitoring with Grafana
 
+After running this performance test an output.jfr recording is generated in jfr folder, it is possible to plot jfr metrics to grafana following these steps:
 
+Start jfr-datasource and grafana with preconfigured datasource and dashboard
+
+```
+cd ../monitoring
+docker-compose up
+```
+
+Post recording to jfr-datasource
+
+```
+curl -F "file=@./jfr/output.jfr" "localhost:8080/load"
+```
+
+Now wait 20s so that grafana will poll metrics from jfr-datsource
+
+And then go to grafana `http://localhost:3000` dashboard camel-jfr to observe results (default login is admin/admin)
