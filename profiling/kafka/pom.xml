@@ -120,6 +120,7 @@
         <module>kafka-nats-exchange-pooling</module>
         <module>kafka-postgresql</module>
         <module>kafka-postgresql-exchange-pooling</module>
+        <module>kafka-solr</module>
         <module>minio-kafka</module>
         <module>minio-kafka-exchange-pooling</module>
         <module>mongo-kafka</module>
