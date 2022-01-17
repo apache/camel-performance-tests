@@ -121,6 +121,7 @@
         <module>kafka-postgresql</module>
         <module>kafka-postgresql-exchange-pooling</module>
         <module>kafka-solr</module>
+        <module>kafka-solr-exchange-pooling</module>
         <module>minio-kafka</module>
         <module>minio-kafka-exchange-pooling</module>
         <module>mongo-kafka</module>
