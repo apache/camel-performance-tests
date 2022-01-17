@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+
+<infinispan xmlns="urn:infinispan:config:12.0">
+    <cache-container>
+        <distributed-cache mode="SYNC" remote-timeout="17500" name="mycache" statistics="true">
+            <encoding>
+                <key media-type="text/plain; charset=UTF-8"/>
+                <value media-type="text/plain; charset=UTF-8"/>
+            </encoding>
+            <locking concurrency-level="1000" acquire-timeout="15000" striping="false"/>
+            <state-transfer timeout="60000"/>
+        </distributed-cache>
+    </cache-container></infinispan>
