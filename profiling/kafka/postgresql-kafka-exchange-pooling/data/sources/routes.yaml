@@ -30,6 +30,6 @@
       - to: 
           uri: "kamelet:kafka-not-secured-sink"
           parameters:
-            brokers: "localhost:9092"
+            bootstrapServers: "localhost:9092"
             topic: "testtopic"
 
