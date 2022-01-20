@@ -123,7 +123,7 @@ What you need to do is simply running this commands:
 jbang  -Dcamel.jbang.version=3.15.0-SNAPSHOT  camel@apache/camel run --jfr-profile=profile data/sources/camel-jbang-route.yaml
 ```
 
-You'll get at jfr recording file once the application will be stopped.
+You'll get at jfr recording file once the application will be stopped in your working directory.
 
 ## Send messages to Kafka
 
