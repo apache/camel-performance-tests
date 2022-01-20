@@ -124,6 +124,18 @@ docker run --rm -ti \
 
 In this case we are allocating 128 Mb Memory to the container and 0.25% cpus.
 
+## Running this profiling example with Camel-Jbang
+
+You could also leveraging the camel-jbang module. From Camel 3.15.0 (still to be released) it will support the profiling feature.
+
+What you need to do is simply running this commands:
+
+```shell script
+jbang  -Dcamel.jbang.version=3.15.0-SNAPSHOT  camel@apache/camel run --jfr-profile=profile data/sources/camel-jbang-route.yaml
+```
+
+You'll get at jfr recording file once the application will be stopped in your working directory.
+
 ## HEAP Sizing
 
 In the pom you can also set a different Heap Size. The default is 64 Mb.
