@@ -49,7 +49,7 @@
         <quarkus.container-image.group>quay.io/oscerd</quarkus.container-image.group>
         <quarkus.container-image.name>${project.artifactId}</quarkus.container-image.name>
 
-        <camel-k-runtime.version>1.12.0</camel-k-runtime.version>
+        <camel-k-runtime.version>1.13.0</camel-k-runtime.version>
         <camel-quarkus.version>2.7.0</camel-quarkus.version>
         <camel-kamelets-catalog.version>0.7.1</camel-kamelets-catalog.version>
     </properties>
