@@ -17,6 +17,7 @@
 package org.apache.camel.test.perf;
 
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.util.StopWatch;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +37,7 @@ public class XsltPerformanceTest extends AbstractBasePerformanceTest {
         StopWatch watch = new StopWatch();
         execute(count);
 
-        assertMockEndpointsSatisfied();
+        MockEndpoint.assertIsSatisfied(context);
         log.warn("Ran {} tests in {}ms", count, watch.taken());
     }
 

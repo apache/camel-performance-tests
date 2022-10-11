@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.util.StopWatch;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +40,7 @@ public class XQueryBasedRoutingPerformanceTest extends AbstractBasePerformanceTe
         StopWatch watch = new StopWatch();
         execute(count);
 
-        assertMockEndpointsSatisfied();
+        MockEndpoint.assertIsSatisfied(context);
         log.warn("Ran {} tests in {}ms", count, watch.taken());
     }
 
@@ -55,7 +56,7 @@ public class XQueryBasedRoutingPerformanceTest extends AbstractBasePerformanceTe
         StopWatch watch = new StopWatch();
         execute(count);
 
-        assertMockEndpointsSatisfied();
+        MockEndpoint.assertIsSatisfied(context);
         log.warn("Ran {} tests in {}ms", count, watch.taken());
     }
 
