@@ -18,7 +18,14 @@
 - route:
     from: 
       uri: "kamelet:kafka-not-secured-source"
+      parameters:
+        bootstrapServers: "localhost:9092"
+        topic: "testtopic"
       steps:
         - to: 
             uri: "kamelet:azure-storage-blob-sink"
+            parameters:
+              accessKey: "accessKey"
+              accountName: "accountName"
+              containerName: "containerName"
 
