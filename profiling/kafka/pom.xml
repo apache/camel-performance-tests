@@ -44,14 +44,14 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
 
-        <quarkus.version>2.8.0.Final</quarkus.version>
+        <quarkus.version>2.11.3.Final</quarkus.version>
         <quarkus.container-image.build>true</quarkus.container-image.build>
         <quarkus.container-image.group>quay.io/oscerd</quarkus.container-image.group>
         <quarkus.container-image.name>${project.artifactId}</quarkus.container-image.name>
 
-        <camel-k-runtime.version>1.13.0</camel-k-runtime.version>
-        <camel-quarkus.version>2.8.0</camel-quarkus.version>
-        <camel-kamelets-catalog.version>0.8.1</camel-kamelets-catalog.version>
+        <camel-k-runtime.version>1.14.0</camel-k-runtime.version>
+        <camel-quarkus.version>2.11.0</camel-quarkus.version>
+        <camel-kamelets-catalog.version>0.9.0</camel-kamelets-catalog.version>
     </properties>
 
     <dependencyManagement>
