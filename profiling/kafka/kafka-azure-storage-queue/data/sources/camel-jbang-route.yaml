@@ -27,5 +27,5 @@
             parameters:
               accessKey: "accessKey"
               accountName: "accountName"
-              queueName: "containerName"
+              queueName: "queueName"
 
