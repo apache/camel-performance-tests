@@ -113,6 +113,7 @@
         <module>kafka-azure-storage-blob</module>
         <module>kafka-azure-storage-blob-exchange-pooling</module>
         <module>kafka-azure-storage-queue</module>
+        <module>kafka-azure-storage-queue-exchange-pooling</module>
         <module>kafka-minio</module>
         <module>kafka-minio-exchange-pooling</module>
         <module>kafka-mongo</module>
