@@ -120,7 +120,7 @@ You could also leveraging the camel-jbang module.
 What you need to do is simply running this commands:
 
 ```shell script
-jbang  -Dcamel.jbang.version=3.20.0-SNAPSHOT  camel@apache/camel run --jfr-profile=profile data/sources/camel-jbang-route.yaml
+jbang  -Dcamel.jbang.version=3.20.0-SNAPSHOT  camel@apache/camel run --properties=data/application.properties --jfr-profile=profile data/sources/camel-jbang-route.yaml
 ```
 
 You'll get at jfr recording file once the application will be stopped in your working directory.
