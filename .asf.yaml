@@ -26,7 +26,6 @@ github:
     - camel
     - integration
     - performances
-    - hacktoberfest
   enabled_merge_buttons:
     merge: false
     rebase: true
