@@ -23,7 +23,7 @@
     <parent>
         <groupId>org.apache.camel</groupId>
         <artifactId>camel-dependencies</artifactId>
-        <version>3.20.0-SNAPSHOT</version>
+        <version>3.21.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.apache.camel.tests</groupId>
@@ -90,9 +90,7 @@
         <site-repo-url>scpexe://people.apache.org/www/camel.apache.org/maven/</site-repo-url>
         <jdk.version>11</jdk.version>
         <compiler.fork>false</compiler.fork>
-
-        <camel.version>3.20.0-SNAPSHOT</camel.version>
-
+        <camel.version>3.21.0-SNAPSHOT</camel.version>
         <!-- Versions -->
         <maven-compiler-plugin-version>3.10.0</maven-compiler-plugin-version>
         <maven-surefire-plugin-version>3.0.0-M4</maven-surefire-plugin-version>
