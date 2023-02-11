@@ -16,6 +16,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -32,6 +33,8 @@ public class BlockingProducerToSedaTest {
                 .measurementIterations(10)
                 .warmupIterations(5)
                 .forks(1)
+                .resultFormat(ResultFormatType.JSON)
+                .result(this.getClass().getSimpleName() + ".jmh.json")
                 .build();
 
         new Runner(opt).run();
