@@ -24,6 +24,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.w3c.dom.Document;
 
 import org.apache.camel.CamelContext;
@@ -67,6 +68,8 @@ public class TypeConverterTest {
                 .shouldFailOnError(true)
                 .shouldDoGC(true)
                 .measurementBatchSize(1000)
+                .resultFormat(ResultFormatType.JSON)
+                .result(this.getClass().getSimpleName() + ".jmh.json")
                 .build();
 
         new Runner(opt).run();

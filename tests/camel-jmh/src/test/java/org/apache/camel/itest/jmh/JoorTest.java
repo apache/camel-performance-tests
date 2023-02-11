@@ -34,6 +34,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -62,6 +63,8 @@ public class JoorTest {
                 .forks(1)
                 .shouldFailOnError(true)
                 .shouldDoGC(true)
+                .resultFormat(ResultFormatType.JSON)
+                .result(this.getClass().getSimpleName() + ".jmh.json")
                 .build();
 
         new Runner(opt).run();
