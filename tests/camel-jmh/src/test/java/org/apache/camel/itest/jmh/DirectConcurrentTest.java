@@ -52,9 +52,9 @@ public class DirectConcurrentTest {
                 .include(this.getClass().getName() + ".*")
                 // Set the following options as needed
                 .mode(Mode.AverageTime)
-                .timeUnit(TimeUnit.MILLISECONDS)
+                .timeUnit(TimeUnit.MICROSECONDS)
                 .warmupIterations(1)
-                .measurementIterations(5)
+                .measurementIterations(15)
                 .threads(4)
                 .forks(1)
                 .shouldFailOnError(true)
