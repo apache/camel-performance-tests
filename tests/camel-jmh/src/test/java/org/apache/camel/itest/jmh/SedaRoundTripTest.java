@@ -1,5 +1,6 @@
 package org.apache.camel.itest.jmh;
 
+import java.io.File;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
@@ -50,6 +51,11 @@ public class SedaRoundTripTest {
         ProducerTemplate producerTemplate;
         ConsumerTemplate consumerTemplate;
 
+        String someString = "test1";
+        File sampleFile = new File("some-file");
+        Integer someInt = Integer.valueOf(1);
+        Long someLong = Long.valueOf(2);
+
         @Setup(Level.Trial)
         public void initialize() throws Exception {
             context = new DefaultCamelContext();
@@ -65,12 +71,27 @@ public class SedaRoundTripTest {
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
     public void sendBlocking(SedaRoundTripTest.BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", "test");
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someString);
         bh.consume(state.consumerTemplate.receive("seda:test"));
     }
 
 
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @Benchmark
+    public void sendBlockingWithMultipleTypes(SedaRoundTripTest.BenchmarkState state, Blackhole bh) {
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someString);
+        bh.consume(state.consumerTemplate.receive("seda:test"));
 
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someLong);
+        bh.consume(state.consumerTemplate.receive("seda:test"));
+
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someInt);
+        bh.consume(state.consumerTemplate.receive("seda:test"));
+
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.sampleFile);
+        bh.consume(state.consumerTemplate.receive("seda:test"));
+    }
 
 
 }
