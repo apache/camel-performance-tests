@@ -16,6 +16,9 @@
  */
 package org.apache.camel.itest.jmh;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
@@ -69,6 +72,10 @@ public class DirectConcurrentTest {
     public static class BenchmarkState {
         CamelContext camel;
         ProducerTemplate producer;
+        String someString = "test1";
+        File sampleFile = new File("some-file");
+        Integer someInt = Integer.valueOf(1);
+        Long someLong = Long.valueOf(2);
 
         @Setup(Level.Trial)
         public void initialize() {
@@ -114,10 +121,17 @@ public class DirectConcurrentTest {
 
     @Benchmark
     public void directConcurrentTest(BenchmarkState state, Blackhole bh) {
-        ProducerTemplate template = state.producer;
-        for (int i = 0; i < 50000; i++) {
-            template.sendBody("direct:start", "Hello " + i);
-        }
+        state.producer.sendBody("direct:start", state.someString);
     }
+
+    @Benchmark
+    public void directConcurrentTestWithMultipleTypes(BenchmarkState state, Blackhole bh) {
+        state.producer.sendBody("direct:start", state.someString);
+        state.producer.sendBody("direct:start", state.someInt);
+        state.producer.sendBody("direct:start", state.someLong);
+        state.producer.sendBody("direct:start", state.sampleFile);
+
+    }
+
 
 }
