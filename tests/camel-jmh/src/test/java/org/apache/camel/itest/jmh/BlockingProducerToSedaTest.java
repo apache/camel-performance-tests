@@ -1,5 +1,6 @@
 package org.apache.camel.itest.jmh;
 
+import java.io.File;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
@@ -47,6 +48,9 @@ public class BlockingProducerToSedaTest {
 
         CamelContext context;
         ProducerTemplate producerTemplate;
+        File sampleFile = new File("some-file");
+        Integer someInt = Integer.valueOf(1);
+        Long someLong = Long.valueOf(2);
 
         @Setup(Level.Trial)
         public void initialize() throws Exception {
@@ -77,7 +81,15 @@ public class BlockingProducerToSedaTest {
     }
 
 
-
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @Benchmark
+    public void sendBlockingWithMultipleTypes(BlockingProducerToSedaTest.BenchmarkState state, Blackhole bh) {
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", "test");
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someInt);
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someLong);
+        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.sampleFile);
+    }
 
 
 }
