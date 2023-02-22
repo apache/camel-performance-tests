@@ -97,7 +97,7 @@
         <maven-javadoc-plugin-version>3.2.0</maven-javadoc-plugin-version>
         <exec-maven-plugin-version>1.6.0</exec-maven-plugin-version>
         <surefire.version>${maven-surefire-plugin-version}</surefire.version>
-        <jmh-version>1.35</jmh-version>
+        <jmh-version>1.36</jmh-version>
         <osgi-version>6.0.0</osgi-version>
     </properties>
 
