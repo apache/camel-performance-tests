@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
 import org.apache.camel.ConsumerTemplate;
+import org.apache.camel.Endpoint;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -50,6 +51,8 @@ public class SedaRoundTripTest {
         CamelContext context;
         ProducerTemplate producerTemplate;
         ConsumerTemplate consumerTemplate;
+        Endpoint producerEndpoint;
+        Endpoint consumerEndpoint;
 
         String someString = "test1";
         File sampleFile = new File("some-file");
@@ -63,6 +66,9 @@ public class SedaRoundTripTest {
             producerTemplate = context.createProducerTemplate();
             consumerTemplate = context.createConsumerTemplate();
 
+            producerEndpoint = context.getEndpoint("seda:test?blockWhenFull=true&offerTimeout=1000");
+            consumerEndpoint = context.getEndpoint("seda:test");
+
             context.start();
         }
     }
@@ -71,8 +77,8 @@ public class SedaRoundTripTest {
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
     public void sendBlocking(SedaRoundTripTest.BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someString);
-        bh.consume(state.consumerTemplate.receive("seda:test"));
+        state.producerTemplate.sendBody(state.producerEndpoint, state.someString);
+        bh.consume(state.consumerTemplate.receive(state.consumerEndpoint));
     }
 
 
@@ -80,17 +86,17 @@ public class SedaRoundTripTest {
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
     public void sendBlockingWithMultipleTypes(SedaRoundTripTest.BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someString);
-        bh.consume(state.consumerTemplate.receive("seda:test"));
+        state.producerTemplate.sendBody(state.producerEndpoint, state.someString);
+        bh.consume(state.consumerTemplate.receive(state.consumerEndpoint));
 
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someLong);
-        bh.consume(state.consumerTemplate.receive("seda:test"));
+        state.producerTemplate.sendBody(state.producerEndpoint, state.someLong);
+        bh.consume(state.consumerTemplate.receive(state.consumerEndpoint));
 
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someInt);
-        bh.consume(state.consumerTemplate.receive("seda:test"));
+        state.producerTemplate.sendBody(state.producerEndpoint, state.someInt);
+        bh.consume(state.consumerTemplate.receive(state.consumerEndpoint));
 
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.sampleFile);
-        bh.consume(state.consumerTemplate.receive("seda:test"));
+        state.producerTemplate.sendBody(state.producerEndpoint, state.sampleFile);
+        bh.consume(state.consumerTemplate.receive(state.consumerEndpoint));
     }
 
 
