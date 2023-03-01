@@ -21,6 +21,7 @@ on:
   pull_request:
     branches:
       - main
+      - camel-3.x
     paths-ignore:
       - README.md
       - NOTICE.txt
