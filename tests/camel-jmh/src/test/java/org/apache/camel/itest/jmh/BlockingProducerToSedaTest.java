@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
+import org.apache.camel.Endpoint;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -48,6 +49,8 @@ public class BlockingProducerToSedaTest {
 
         CamelContext context;
         ProducerTemplate producerTemplate;
+        Endpoint endpoint;
+
         File sampleFile = new File("some-file");
         Integer someInt = Integer.valueOf(1);
         Long someLong = Long.valueOf(2);
@@ -57,6 +60,7 @@ public class BlockingProducerToSedaTest {
             context = new DefaultCamelContext();
 
             producerTemplate = context.createProducerTemplate();
+            endpoint = context.getEndpoint("seda:test?blockWhenFull=true&offerTimeout=1000");
 
             context.addRoutes(new RouteBuilder() {
                 @Override
@@ -64,7 +68,7 @@ public class BlockingProducerToSedaTest {
                     onException(IllegalStateException.class)
                             .process(e -> System.out.println("The SEDA queue is likely full and the system may be unable to catch to the load. Fix the test parameters"));
 
-                    fromF("seda:test").to("log: ${body}");
+                    fromF("seda:test").to("log:?level=OFF");
 
                 }
             });
@@ -77,7 +81,7 @@ public class BlockingProducerToSedaTest {
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
     public void sendBlocking(BlockingProducerToSedaTest.BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", "test");
+        state.producerTemplate.sendBody(state.endpoint, "test");
     }
 
 
@@ -85,10 +89,10 @@ public class BlockingProducerToSedaTest {
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
     public void sendBlockingWithMultipleTypes(BlockingProducerToSedaTest.BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", "test");
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someInt);
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.someLong);
-        state.producerTemplate.sendBody("seda:test?blockWhenFull=true&offerTimeout=1000", state.sampleFile);
+        state.producerTemplate.sendBody(state.endpoint, "test");
+        state.producerTemplate.sendBody(state.endpoint, state.someInt);
+        state.producerTemplate.sendBody(state.endpoint, state.someLong);
+        state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
     }
 
 
