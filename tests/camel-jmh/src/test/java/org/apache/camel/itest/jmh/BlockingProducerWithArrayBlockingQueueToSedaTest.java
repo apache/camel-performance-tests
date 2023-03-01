@@ -19,6 +19,7 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
@@ -83,7 +84,15 @@ public class BlockingProducerWithArrayBlockingQueueToSedaTest {
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
-    public void sendBlocking(BlockingProducerWithArrayBlockingQueueToSedaTest.BenchmarkState state, Blackhole bh) {
+    public void sendBlocking(BenchmarkState state, Blackhole bh) {
+        state.producerTemplate.sendBody(state.endpoint, "test");
+    }
+
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @Benchmark
+    @Threads(6)
+    public void sendBlocking_4(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
 
@@ -91,7 +100,18 @@ public class BlockingProducerWithArrayBlockingQueueToSedaTest {
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
-    public void sendBlockingWithMultipleTypes(BlockingProducerWithArrayBlockingQueueToSedaTest.BenchmarkState state, Blackhole bh) {
+    public void sendBlockingWithMultipleTypes(BenchmarkState state, Blackhole bh) {
+        state.producerTemplate.sendBody(state.endpoint, "test");
+        state.producerTemplate.sendBody(state.endpoint, state.someInt);
+        state.producerTemplate.sendBody(state.endpoint, state.someLong);
+        state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
+    }
+
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @Benchmark
+    @Threads(6)
+    public void sendBlockingWithMultipleTypes_6(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
         state.producerTemplate.sendBody(state.endpoint, state.someInt);
         state.producerTemplate.sendBody(state.endpoint, state.someLong);
