@@ -28,7 +28,7 @@ on:
 
 jobs:
   compile:
-    if: github.repository == 'apache/camel-performance'
+    if: github.repository == 'apache/camel-performance-tests'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
