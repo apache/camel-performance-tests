@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
+import org.apache.camel.Endpoint;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -72,6 +73,8 @@ public class DirectConcurrentTest {
     public static class BenchmarkState {
         CamelContext camel;
         ProducerTemplate producer;
+        Endpoint endpoint;
+
         String someString = "test1";
         File sampleFile = new File("some-file");
         Integer someInt = Integer.valueOf(1);
@@ -80,6 +83,8 @@ public class DirectConcurrentTest {
         @Setup(Level.Trial)
         public void initialize() {
             camel = new DefaultCamelContext();
+            endpoint = camel.getEndpoint("direct:start");
+
             try {
                 camel.addRoutes(new RouteBuilder() {
                     @Override
@@ -121,15 +126,15 @@ public class DirectConcurrentTest {
 
     @Benchmark
     public void directConcurrentTest(BenchmarkState state, Blackhole bh) {
-        state.producer.sendBody("direct:start", state.someString);
+        state.producer.sendBody(state.endpoint, state.someString);
     }
 
     @Benchmark
     public void directConcurrentTestWithMultipleTypes(BenchmarkState state, Blackhole bh) {
-        state.producer.sendBody("direct:start", state.someString);
-        state.producer.sendBody("direct:start", state.someInt);
-        state.producer.sendBody("direct:start", state.someLong);
-        state.producer.sendBody("direct:start", state.sampleFile);
+        state.producer.sendBody(state.endpoint, state.someString);
+        state.producer.sendBody(state.endpoint, state.someInt);
+        state.producer.sendBody(state.endpoint, state.someLong);
+        state.producer.sendBody(state.endpoint, state.sampleFile);
 
     }
 
