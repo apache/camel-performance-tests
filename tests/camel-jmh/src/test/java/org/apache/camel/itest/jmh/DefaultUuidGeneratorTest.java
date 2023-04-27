@@ -16,8 +16,6 @@
  */
 package org.apache.camel.itest.jmh;
 
-import java.util.concurrent.TimeUnit;
-
 import org.apache.camel.support.DefaultUuidGenerator;
 import org.junit.jupiter.api.Test;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -27,11 +25,14 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
-import org.openjdk.jmh.runner.options.TimeValue;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests the {@link DefaultUuidGenerator}.
@@ -47,16 +48,17 @@ public class DefaultUuidGeneratorTest {
                 // You can be more specific if you'd like to run only one benchmark per test.
                 .include(this.getClass().getName() + ".*")
                 // Set the following options as needed
-                .mode(Mode.All)
-                .timeUnit(TimeUnit.MICROSECONDS)
-                .warmupTime(TimeValue.seconds(1))
-                .warmupIterations(2)
-                .measurementTime(TimeValue.seconds(1))
+                .mode(Mode.SingleShotTime)
+                .timeUnit(TimeUnit.MILLISECONDS)
+                .warmupIterations(5)
+                .warmupBatchSize(5000)
                 .measurementIterations(2)
                 .threads(2)
                 .forks(1)
                 .shouldFailOnError(true)
                 .shouldDoGC(true)
+                .resultFormat(ResultFormatType.JSON)
+                .result(this.getClass().getSimpleName() + ".jmh.json")
                 .build();
 
         new Runner(opt).run();
@@ -81,4 +83,43 @@ public class DefaultUuidGeneratorTest {
         bh.consume(id);
     }
 
+    @Benchmark
+    @Measurement(batchSize = 1000000)
+    @Threads(2)
+    public void benchmark_2(BenchmarkState state, Blackhole bh) {
+        String id = state.uuid.generateUuid();
+        bh.consume(id);
+    }
+
+    @Benchmark
+    @Measurement(batchSize = 1000000)
+    @Threads(4)
+    public void benchmark_4(BenchmarkState state, Blackhole bh) {
+        String id = state.uuid.generateUuid();
+        bh.consume(id);
+    }
+
+    @Benchmark
+    @Measurement(batchSize = 1000000)
+    @Threads(8)
+    public void benchmark_8(BenchmarkState state, Blackhole bh) {
+        String id = state.uuid.generateUuid();
+        bh.consume(id);
+    }
+
+    @Benchmark
+    @Measurement(batchSize = 1000000)
+    @Threads(16)
+    public void benchmark_16(BenchmarkState state, Blackhole bh) {
+        String id = state.uuid.generateUuid();
+        bh.consume(id);
+    }
+
+    @Benchmark
+    @Measurement(batchSize = 1000000)
+    @Threads(32)
+    public void benchmark_32(BenchmarkState state, Blackhole bh) {
+        String id = state.uuid.generateUuid();
+        bh.consume(id);
+    }
 }
