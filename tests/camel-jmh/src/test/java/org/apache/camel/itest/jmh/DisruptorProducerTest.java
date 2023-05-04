@@ -14,6 +14,7 @@ import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -47,6 +48,8 @@ public class DisruptorProducerTest {
     // http://hg.openjdk.java.net/code-tools/jmh/file/tip/jmh-samples/src/main/java/org/openjdk/jmh/samples/
     @State(Scope.Benchmark)
     public static class BenchmarkState {
+        @Param({"1", "2", "4", "8", "16", "32"})
+        int consumers;
 
         CamelContext context;
         ProducerTemplate producerTemplate;
@@ -66,7 +69,7 @@ public class DisruptorProducerTest {
             context.addRoutes(new RouteBuilder() {
                 @Override
                 public void configure() {
-                    fromF("disruptor:test").to("log:?level=OFF");
+                    fromF("disruptor:test?concurrentConsumers=%s", consumers).to("log:?level=OFF");
 
                 }
             });
