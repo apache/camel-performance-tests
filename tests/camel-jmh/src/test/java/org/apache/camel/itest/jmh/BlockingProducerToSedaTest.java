@@ -89,7 +89,7 @@ public class BlockingProducerToSedaTest {
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
     @Benchmark
     @Threads(6)
-    public void sendBlocking_4(BenchmarkState state, Blackhole bh) {
+    public void sendBlocking_6(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
 
