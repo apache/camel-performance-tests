@@ -55,10 +55,6 @@ public class DisruptorProducerTest {
         ProducerTemplate producerTemplate;
         Endpoint endpoint;
 
-        File sampleFile = new File("some-file");
-        Integer someInt = Integer.valueOf(1);
-        Long someLong = Long.valueOf(2);
-
         @Setup(Level.Trial)
         public void initialize() throws Exception {
             context = new DefaultCamelContext();
