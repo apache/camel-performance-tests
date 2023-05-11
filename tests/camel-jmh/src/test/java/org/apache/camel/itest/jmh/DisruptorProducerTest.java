@@ -75,14 +75,14 @@ public class DisruptorProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     public void send_1(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(2)
     public void send_2(BenchmarkState state, Blackhole bh) {
@@ -91,7 +91,7 @@ public class DisruptorProducerTest {
 
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(4)
     public void send_4(BenchmarkState state, Blackhole bh) {
@@ -99,7 +99,7 @@ public class DisruptorProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(8)
     public void send_8(BenchmarkState state, Blackhole bh) {
@@ -107,7 +107,7 @@ public class DisruptorProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(16)
     public void send_16(BenchmarkState state, Blackhole bh) {
@@ -115,7 +115,7 @@ public class DisruptorProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(32)
     public void send_32(BenchmarkState state, Blackhole bh) {
