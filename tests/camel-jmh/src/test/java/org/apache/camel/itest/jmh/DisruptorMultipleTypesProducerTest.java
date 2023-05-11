@@ -25,6 +25,12 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
+
+/**
+ * This tests the disruptor component when running with a small threads and exchanging data with different types. This is
+ * suitable for most cases when a large machine with too many cores is not available (as it limits to a maximum of 4 consumers
+ * + 4 producers).
+ */
 public class DisruptorMultipleTypesProducerTest {
 
     @Test
@@ -48,7 +54,7 @@ public class DisruptorMultipleTypesProducerTest {
     // http://hg.openjdk.java.net/code-tools/jmh/file/tip/jmh-samples/src/main/java/org/openjdk/jmh/samples/
     @State(Scope.Benchmark)
     public static class BenchmarkState {
-        @Param({"1", "2", "4", "8", "16", "32"})
+        @Param({"1", "2", "4"})
         int consumers;
 
         CamelContext context;
@@ -78,7 +84,7 @@ public class DisruptorMultipleTypesProducerTest {
         }
     }
 
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     public void sendMultipleTypes_1(BenchmarkState state, Blackhole bh) {
@@ -88,7 +94,7 @@ public class DisruptorMultipleTypesProducerTest {
         state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
     }
 
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(2)
@@ -99,45 +105,11 @@ public class DisruptorMultipleTypesProducerTest {
         state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
     }
 
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(4)
     public void sendBlockingWithMultipleTypes_4(BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody(state.endpoint, "test");
-        state.producerTemplate.sendBody(state.endpoint, state.someInt);
-        state.producerTemplate.sendBody(state.endpoint, state.someLong);
-        state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
-    }
-
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode(Mode.AverageTime)
-    @Benchmark
-    @Threads(8)
-    public void sendBlockingWithMultipleTypes_8(BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody(state.endpoint, "test");
-        state.producerTemplate.sendBody(state.endpoint, state.someInt);
-        state.producerTemplate.sendBody(state.endpoint, state.someLong);
-        state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
-    }
-
-
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode(Mode.AverageTime)
-    @Benchmark
-    @Threads(16)
-    public void sendBlockingWithMultipleTypes_16(BenchmarkState state, Blackhole bh) {
-        state.producerTemplate.sendBody(state.endpoint, "test");
-        state.producerTemplate.sendBody(state.endpoint, state.someInt);
-        state.producerTemplate.sendBody(state.endpoint, state.someLong);
-        state.producerTemplate.sendBody(state.endpoint, state.sampleFile);
-    }
-
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode(Mode.AverageTime)
-    @Benchmark
-    @Threads(32)
-    public void sendBlockingWithMultipleTypes_32(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
         state.producerTemplate.sendBody(state.endpoint, state.someInt);
         state.producerTemplate.sendBody(state.endpoint, state.someLong);
