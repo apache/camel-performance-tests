@@ -82,14 +82,14 @@ public class BlockingProducerWithArrayBlockingQueueToSedaTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     public void sendBlocking(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(6)
     public void sendBlocking_6(BenchmarkState state, Blackhole bh) {
@@ -98,7 +98,7 @@ public class BlockingProducerWithArrayBlockingQueueToSedaTest {
 
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     public void sendBlockingWithMultipleTypes(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
@@ -108,7 +108,7 @@ public class BlockingProducerWithArrayBlockingQueueToSedaTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(6)
     public void sendBlockingWithMultipleTypes_6(BenchmarkState state, Blackhole bh) {

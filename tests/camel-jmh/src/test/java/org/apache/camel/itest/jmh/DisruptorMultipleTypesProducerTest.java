@@ -79,7 +79,7 @@ public class DisruptorMultipleTypesProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     public void sendMultipleTypes_1(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
@@ -89,7 +89,7 @@ public class DisruptorMultipleTypesProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(2)
     public void sendBlockingWithMultipleTypes_2(BenchmarkState state, Blackhole bh) {
@@ -100,7 +100,7 @@ public class DisruptorMultipleTypesProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(4)
     public void sendBlockingWithMultipleTypes_4(BenchmarkState state, Blackhole bh) {
@@ -111,7 +111,7 @@ public class DisruptorMultipleTypesProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(8)
     public void sendBlockingWithMultipleTypes_8(BenchmarkState state, Blackhole bh) {
@@ -123,7 +123,7 @@ public class DisruptorMultipleTypesProducerTest {
 
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(16)
     public void sendBlockingWithMultipleTypes_16(BenchmarkState state, Blackhole bh) {
@@ -134,7 +134,7 @@ public class DisruptorMultipleTypesProducerTest {
     }
 
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+    @BenchmarkMode(Mode.AverageTime)
     @Benchmark
     @Threads(32)
     public void sendBlockingWithMultipleTypes_32(BenchmarkState state, Blackhole bh) {
