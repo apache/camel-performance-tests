@@ -25,10 +25,11 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 /**
- * This tests the disruptor component when running with a small threads. This is suitable for most cases when
- * a large machine with too many cores is not available (as it limits to a maximum of 4 consumers + 4 producers).
+ * This tests the scalability of the disruptor component when running with many threads. You need a large machine for running
+ * this reliably: desktops and machines with a small number of cores may introduce excessive scheduler latency affecting the
+ * results.
  */
-public class DisruptorProducerTest {
+public class DisruptorScalabilityProducerTest {
 
     @Test
     public void launchBenchmark() throws Exception {
@@ -51,7 +52,7 @@ public class DisruptorProducerTest {
     // http://hg.openjdk.java.net/code-tools/jmh/file/tip/jmh-samples/src/main/java/org/openjdk/jmh/samples/
     @State(Scope.Benchmark)
     public static class BenchmarkState {
-        @Param({"1", "2", "4"})
+        @Param({"1", "8", "16", "32"})
         int consumers;
 
         CamelContext context;
@@ -80,24 +81,24 @@ public class DisruptorProducerTest {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @BenchmarkMode(Mode.AverageTime)
     @Benchmark
-    public void send_1(BenchmarkState state, Blackhole bh) {
+    @Threads(8)
+    public void send_8(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
 
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @BenchmarkMode(Mode.AverageTime)
     @Benchmark
-    @Threads(2)
-    public void send_2(BenchmarkState state, Blackhole bh) {
+    @Threads(16)
+    public void send_16(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
-
 
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @BenchmarkMode(Mode.AverageTime)
     @Benchmark
-    @Threads(4)
-    public void send_4(BenchmarkState state, Blackhole bh) {
+    @Threads(32)
+    public void send_32(BenchmarkState state, Blackhole bh) {
         state.producerTemplate.sendBody(state.endpoint, "test");
     }
 }
