@@ -87,7 +87,6 @@ public class SimpleOperatorTest {
         public void initialize() {
             camel = new DefaultCamelContext();
             try {
-                camel.getTypeConverterRegistry().getStatistics().setStatisticsEnabled(true);
                 camel.start();
                 exchange = new DefaultExchange(camel);
                 exchange.getIn().setBody("World");
