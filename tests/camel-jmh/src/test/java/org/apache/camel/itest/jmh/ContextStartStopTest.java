@@ -20,10 +20,7 @@ package org.apache.camel.itest.jmh;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
-import org.apache.camel.ExtendedCamelContext;
 import org.apache.camel.impl.DefaultCamelContext;
-import org.apache.camel.impl.engine.PrototypeExchangeFactory;
-import org.apache.camel.model.ModelCamelContext;
 import org.junit.jupiter.api.Test;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
@@ -64,9 +61,6 @@ public class ContextStartStopTest {
     public static class BenchmarkState {
 
         CamelContext context;
-        PrototypeExchangeFactory factory;
-        ExtendedCamelContext extendedCamelContext;
-        ModelCamelContext modelCamelContext;
 
         @Setup(Level.Trial)
         public void initialize() {
