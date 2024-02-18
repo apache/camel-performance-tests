@@ -92,13 +92,12 @@
         <compiler.fork>false</compiler.fork>
         <camel.version>4.4.0</camel.version>
         <!-- Versions -->
-        <maven-compiler-plugin-version>3.10.0</maven-compiler-plugin-version>
-        <maven-surefire-plugin-version>3.0.0-M4</maven-surefire-plugin-version>
-        <maven-javadoc-plugin-version>3.2.0</maven-javadoc-plugin-version>
-        <exec-maven-plugin-version>1.6.0</exec-maven-plugin-version>
+        <maven-compiler-plugin-version>3.12.1</maven-compiler-plugin-version>
+        <maven-surefire-plugin-version>3.2.5</maven-surefire-plugin-version>
+        <maven-javadoc-plugin-version>3.6.3</maven-javadoc-plugin-version>
+        <exec-maven-plugin-version>3.1.1</exec-maven-plugin-version>
         <surefire.version>${maven-surefire-plugin-version}</surefire.version>
-        <jmh-version>1.36</jmh-version>
-        <osgi-version>6.0.0</osgi-version>
+        <jmh-version>1.37</jmh-version>
     </properties>
 
     <repositories>
