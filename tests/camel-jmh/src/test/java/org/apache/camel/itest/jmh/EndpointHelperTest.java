@@ -50,7 +50,7 @@ public class EndpointHelperTest {
     public static class BenchmarkState {
         DefaultCamelContext context;
         ProducerTemplate producerTemplate;
-        EndpointRegistry<NormalizedUri> endpointRegistry;
+        EndpointRegistry endpointRegistry;
 
         String[] stringRoutes = new String[500];
         NormalizedUri[] routes = new NormalizedUri[500];
