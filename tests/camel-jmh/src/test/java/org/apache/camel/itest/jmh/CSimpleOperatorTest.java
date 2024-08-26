@@ -58,7 +58,7 @@ public class CSimpleOperatorTest {
                 .mode(Mode.All)
                 .timeUnit(TimeUnit.MICROSECONDS)
                 .warmupTime(TimeValue.seconds(1))
-                .warmupIterations(2)
+                .warmupIterations(5)
                 .measurementTime(TimeValue.seconds(10))
                 .measurementIterations(2)
                 .threads(2)
@@ -77,9 +77,9 @@ public class CSimpleOperatorTest {
     @State(Scope.Thread)
     public static class BenchmarkState {
         CamelContext camel;
-        String expression = "${header.gold} == 123";
-        String expression2 = "${header.gold} > 123";
-        String expression3 = "${header.gold} < 123";
+        final String expressionEquals = "${header.gold} == 123";
+        final String expressionGreaterThan = "${header.gold} > 123";
+        final String expressionSmallerThan = "${header.gold} < 123";
         Exchange exchange;
         Language csimple;
 
@@ -101,7 +101,7 @@ public class CSimpleOperatorTest {
         @TearDown(Level.Trial)
         public void close() {
             try {
-                LOG.info("" + camel.getTypeConverterRegistry().getStatistics());
+                LOG.info("{}", camel.getTypeConverterRegistry().getStatistics());
                 camel.stop();
             } catch (Exception e) {
                 // ignore
@@ -112,22 +112,23 @@ public class CSimpleOperatorTest {
 
     @Benchmark
     @Measurement(batchSize = 1000)
-    public void csimplePredicate(BenchmarkState state, Blackhole bh) {
-        boolean out = state.csimple.createPredicate(state.expression).matches(state.exchange);
-        if (!out) {
-            throw new IllegalArgumentException("Evaluation failed");
-        }
+    public void cSimplePredicateEquals(BenchmarkState state, Blackhole bh) {
+        boolean out = state.csimple.createPredicate(state.expressionEquals).matches(state.exchange);
         bh.consume(out);
-        boolean out2 = state.csimple.createPredicate(state.expression2).matches(state.exchange);
-        if (out2) {
-            throw new IllegalArgumentException("Evaluation failed");
-        }
-        bh.consume(out2);
-        boolean out3 = state.csimple.createPredicate(state.expression3).matches(state.exchange);
-        if (out3) {
-            throw new IllegalArgumentException("Evaluation failed");
-        }
-        bh.consume(out3);
+
     }
 
+    @Benchmark
+    @Measurement(batchSize = 1000)
+    public void cSimplePredicateGreater(BenchmarkState state, Blackhole bh) {
+        boolean out = state.csimple.createPredicate(state.expressionGreaterThan).matches(state.exchange);
+        bh.consume(out);
+    }
+
+    @Benchmark
+    @Measurement(batchSize = 1000)
+    public void cSimplePredicateSmaller(BenchmarkState state, Blackhole bh) {
+        boolean out = state.csimple.createPredicate(state.expressionSmallerThan).matches(state.exchange);
+        bh.consume(out);
+    }
 }
