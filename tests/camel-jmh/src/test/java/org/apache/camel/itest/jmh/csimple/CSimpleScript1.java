@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.itest.jmh;
+package org.apache.camel.itest.jmh.csimple;
 
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
@@ -23,20 +23,20 @@ import org.apache.camel.language.csimple.CSimpleSupport;
 
 import static org.apache.camel.language.csimple.CSimpleHelper.headerAs;
 
-public class CSimpleScript3 extends CSimpleSupport {
+public class CSimpleScript1 extends CSimpleSupport {
 
-    public CSimpleScript3() {
+    public CSimpleScript1() {
     }
 
     @Override
     public String getText() {
-        return "${header.gold} < 123";
+        return "${header.gold} == 123";
     }
 
     @Override
     public Object evaluate(CamelContext context, Exchange exchange, Message message, Object body)
             throws Exception {
-        return headerAs(message, "gold", int.class) < 123;
+        return headerAs(message, "gold", int.class) == 123;
     }
 
     @Override
