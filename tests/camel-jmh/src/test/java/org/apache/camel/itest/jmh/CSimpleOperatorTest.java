@@ -57,7 +57,7 @@ public class CSimpleOperatorTest {
                 // Set the following options as needed
                 .mode(Mode.All)
                 .timeUnit(TimeUnit.MICROSECONDS)
-                .warmupTime(TimeValue.seconds(1))
+                .warmupTime(TimeValue.seconds(3))
                 .warmupIterations(5)
                 .measurementTime(TimeValue.seconds(10))
                 .measurementIterations(2)
