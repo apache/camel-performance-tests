@@ -108,7 +108,7 @@ public class StringHelperTest {
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public void testDashToCamelCasePositive(Blackhole bh) {
-        bh.consume(StringHelper.capitalize(dashStringToCapitalizePositive));
+        bh.consume(StringHelper.dashToCamelCase(dashStringToCapitalizePositive));
     }
 
 
@@ -116,22 +116,22 @@ public class StringHelperTest {
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public void testDashToCamelCaseNegative(Blackhole bh) {
-        bh.consume(StringHelper.capitalize(dashStringToCapitalizeNegative));
+        bh.consume(StringHelper.dashToCamelCase(dashStringToCapitalizeNegative));
     }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    public void testDashToCamelCasePositiveToDash(Blackhole bh) {
-        bh.consume(StringHelper.capitalize(dashStringToCapitalizePositive, true));
+    public void testDashToCamelCasePositiveSkip(Blackhole bh) {
+        bh.consume(StringHelper.dashToCamelCase(dashStringToCapitalizePositive, true));
     }
 
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    public void testDashToCamelCaseNegative1(Blackhole bh) {
-        bh.consume(StringHelper.capitalize(dashStringToCapitalizeNegative, true));
+    public void testDashToCamelCaseNegativeSkip(Blackhole bh) {
+        bh.consume(StringHelper.dashToCamelCase(dashStringToCapitalizeNegative, true));
     }
 
     @Benchmark
