@@ -31,6 +31,12 @@ public class StringHelperTest {
 
     private String camelCaseToDashStringToCapitalize = "propertyName";
 
+    private String replaceableText = "part1.secondPart";
+
+    private String sanitazableText = "part1.secondPart://something";
+
+    private String nonSanitazableText = "part1SecondPartSomething";
+
     @Test
     public void launchBenchmark() throws Exception {
         Options opt = new OptionsBuilder()
@@ -147,4 +153,26 @@ public class StringHelperTest {
     public void testCamelCaseToDashNegative(Blackhole bh) {
         bh.consume(StringHelper.camelCaseToDash(dashStringToCapitalizeNegative));
     }
+
+    @Benchmark
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    public void testReplaceFirst(Blackhole bh) {
+        bh.consume(StringHelper.replaceFirst(replaceableText, "part1", "firstPart"));
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    public void testSanitizeNegative(Blackhole bh) {
+        bh.consume(StringHelper.sanitize(nonSanitazableText));
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    public void testSanitizePositive(Blackhole bh) {
+        bh.consume(StringHelper.sanitize(sanitazableText));
+    }
+
 }
