@@ -39,6 +39,9 @@ public class StringHelperTest {
 
     private String className = "java. lang. String";
 
+    private String betweenText = "Hello ${foo bar} how are you";
+
+
     @Test
     public void launchBenchmark() throws Exception {
         Options opt = new OptionsBuilder()
@@ -175,6 +178,20 @@ public class StringHelperTest {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public void testSanitizePositive(Blackhole bh) {
         bh.consume(StringHelper.sanitize(sanitazableText));
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    public void testBetweenNegative(Blackhole bh) {
+        bh.consume(StringHelper.between(betweenText, "'", "'"));
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    public void testBetweenPositive(Blackhole bh) {
+        bh.consume(StringHelper.between(betweenText, "${", "}"));
     }
 
 }
