@@ -37,6 +37,8 @@ public class StringHelperTest {
 
     private String nonSanitazableText = "part1SecondPartSomething";
 
+    private String className = "java. lang. String";
+
     @Test
     public void launchBenchmark() throws Exception {
         Options opt = new OptionsBuilder()
@@ -100,7 +102,7 @@ public class StringHelperTest {
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public void testIsClassNamePositive(Blackhole bh) {
-        bh.consume(StringHelper.isClassName(bh.getClass().getName()));
+        bh.consume(StringHelper.isClassName(className));
     }
 
     @Benchmark
