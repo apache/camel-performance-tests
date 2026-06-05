@@ -27,6 +27,10 @@ on:
       - NOTICE.txt
       - LICENSE.txt
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   compile:
     if: github.repository == 'apache/camel-performance-tests'
