@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.camel.CamelContext;
+import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.component.file.FileConsumer;
 import org.apache.camel.component.file.FileEndpoint;
@@ -67,8 +68,8 @@ public class FileComponentPollingDirectoryTest {
         }
 
         @Override
-        public boolean pollDirectory(String fileName, List<GenericFile<File>> fileList, int depth) {
-            return super.pollDirectory(fileName, fileList, depth);
+        public boolean pollDirectory(Exchange dynamic, String fileName, List<GenericFile<File>> fileList, int depth) {
+            return super.pollDirectory(dynamic, fileName, fileList, depth);
         }
     }
 
@@ -113,7 +114,7 @@ public class FileComponentPollingDirectoryTest {
     @Benchmark
     public void testFilePolling() {
         System.out.println("Polling from " + inputDir);
-        consumer.pollDirectory(inputDir, fileList, 0);
+        consumer.pollDirectory(endpoint.createExchange() , inputDir, fileList, 0);
         System.out.println("Polled files: " + fileList.size());
     }
 
