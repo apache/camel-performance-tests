@@ -92,7 +92,7 @@
         <compiler.fork>false</compiler.fork>
         <camel.version>4.7.0</camel.version>
         <!-- Versions -->
-        <maven-compiler-plugin-version>3.12.1</maven-compiler-plugin-version>
+        <maven-compiler-plugin-version>3.15.0</maven-compiler-plugin-version>
         <maven-surefire-plugin-version>3.5.6</maven-surefire-plugin-version>
         <maven-javadoc-plugin-version>3.6.3</maven-javadoc-plugin-version>
         <exec-maven-plugin-version>3.1.1</exec-maven-plugin-version>
