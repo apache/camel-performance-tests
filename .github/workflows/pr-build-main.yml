@@ -46,4 +46,4 @@ jobs:
         java-version: 17
         cache: 'maven'
     - name: Maven build
-      run: mvn -V -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 --no-transfer-progress clean compile
+      run: mvn -V -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 --no-transfer-progress clean verify
