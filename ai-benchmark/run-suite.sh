@@ -8,7 +8,8 @@ export MCP_URL="${MCP_URL:-http://127.0.0.1:9090/mcp}"
 export BENCH_VALIDATE_PROPS=1
 export BENCH_VALIDATE_SOURCE=1
 # the one-shot model gets catalog lookups and validation only: no example catalog (that would hand it the answer), no runtime tools
-export BENCH_TOOL_ALLOW="${BENCH_TOOL_ALLOW:-^camel_(catalog_(components|component_doc|eips|eip_doc|languages|language_doc|dataformats|dataformat_doc|docs|doc|find|sample)|validate_(yaml_dsl|route|source)|component_properties|configuration_validate|error_diagnose|eval_expression)$}"
+# the shared authoring tools of the catalog and validation kind; after CAMEL-24712 these are the only catalog tools
+export BENCH_TOOL_ALLOW="${BENCH_TOOL_ALLOW:-^camel_(catalog_(doc|find|sample|docs)|validate_source|component_properties|configuration_validate|error_diagnose|eval_expression)$}"
 command -v caffeinate > /dev/null && caffeinate -i -s -w $$ &   # macOS: keep the machine awake for the hour
 echo "[$TAG] one-shot start $(date +%T)" | tee -a "$TAG.log"
 BENCH_OUT="oneshot-$TAG" python3 agent_local.py > "oneshot-$TAG.out" 2>&1

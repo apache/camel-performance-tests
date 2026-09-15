@@ -4,7 +4,7 @@ from CAMEL-24695.
 
 The model gets the shared authoring set (camel_catalog_doc, camel_catalog_find, camel_validate_source,
 camel_get_files, camel_write_file, camel_run, camel_control, camel_get_log, camel_get_errors,
-camel_eval_expression, camel_error_diagnose) plus the structured catalog tools, and a short neutral system
+camel_eval_expression, camel_error_diagnose) plus a few catalog tools, and a short neutral system
 prompt. The harness starts the integration once with camel_run (dev mode) before step 1, then sends the
 8 requests one at a time. Scoring: files on disk, log via camel_get_log,
 errors via camel_get_errors, diff size, reference checkpoint after each step.
@@ -28,8 +28,7 @@ TOOL_RESULT_CAP = 6000
 
 SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "camel_validate_source", "camel_get_files", "camel_write_file",
           "camel_run", "camel_control", "camel_get_log", "camel_get_errors", "camel_eval_expression", "camel_error_diagnose"]
-EXTRA = ["camel_catalog_components", "camel_catalog_component_doc", "camel_catalog_eips", "camel_catalog_eip_doc",
-         "camel_catalog_languages", "camel_catalog_language_doc", "camel_catalog_dataformats", "camel_catalog_dataformat_doc"]
+EXTRA = ["camel_catalog_docs", "camel_component_properties", "camel_configuration_validate"]
 
 SYSTEM = (
     "You are an Apache Camel assistant helping a developer edit a running Camel integration through the Camel MCP server.\n\n"

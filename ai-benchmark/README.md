@@ -25,7 +25,9 @@ Two benchmarks, both scored by what actually runs, not by reading the model's ou
    integration after the reload, and the errors, against a reference checkpoint.
 
 The model is never shown the example projects or their catalog tools; the one-shot tool set is restricted to catalog
-lookups and validation (`BENCH_TOOL_ALLOW` in `run-suite.sh`).
+lookups and validation (`BENCH_TOOL_ALLOW` in `run-suite.sh`): the shared `camel_catalog_doc`, `camel_catalog_find`,
+`camel_catalog_sample`, `camel_validate_source` and a few smaller ones. The first series also offered the older per-kind
+catalog tools that CAMEL-24712 removes; the allow-list here names the shared ones only.
 
 ## Prerequisites
 

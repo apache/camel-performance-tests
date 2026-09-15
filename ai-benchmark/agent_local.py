@@ -26,8 +26,7 @@ TOOL_RESULT_CAP = 6000
 # Tools offered to the model: catalog lookups and validation only. No example catalog
 # (that would hand the model the answer), no runtime, security, migration or dependency tools.
 ALLOW = re.compile(os.environ.get("BENCH_TOOL_ALLOW",
-    r"^camel_(catalog_(components|component_doc|eips|eip_doc|languages|language_doc|dataformats|dataformat_doc|doc_pages|doc_page)"
-    r"|validate_(yaml|endpoint|route|configuration)|component_(doc|properties)|eip_doc|language_doc|dataformat_doc)"))
+    r"^camel_(catalog_(doc|find|sample|docs)|validate_source|component_properties|configuration_validate|error_diagnose|eval_expression)$"))
 
 SYSTEM = """You are an AI assistant helping a developer build a small Apache Camel integration that runs
 with the Camel CLI (camel-jbang), written in Camel YAML DSL.
