@@ -1,0 +1,7 @@
+# run outputs
+oneshot-*/
+stepwise/
+local/
+*.log
+*.out
+__pycache__/

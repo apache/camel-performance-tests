@@ -1,0 +1,117 @@
+{
+ "project": "stepwise-project",
+ "route_file": "timer-log.camel.yaml",
+ "props_file": "application.properties",
+ "wait_seconds": 13,
+ "steps": [
+  {
+   "id": 1,
+   "request": "Change the timer so it fires every 5 seconds instead of every second.",
+   "check": {
+    "props_regex": "timer\\.period\\s*=\\s*5000|period.*5000",
+    "log_regex": "Hello Camel",
+    "min_log": 1,
+    "interval_min": 4.5
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"{{greeting.message}}\"\n        - log:\n            message: \"${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\n"
+   }
+  },
+  {
+   "id": 2,
+   "request": "Set the body to a random number between 0 and 40 instead of the greeting message.",
+   "check": {
+    "file_regex": "random",
+    "log_regex": "^\\d{1,2}$",
+    "min_log": 1
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - log:\n            message: \"${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\n"
+   }
+  },
+  {
+   "id": 3,
+   "request": "Add a choice: when the body is 30 or more, log \"hot: <the body>\", otherwise log \"normal: <the body>\".",
+   "check": {
+    "file_regex": "choice",
+    "log_regex": "^(hot|normal): \\d+",
+    "min_log": 1
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - choice:\n            when:\n              - simple: \"${body} >= 30\"\n                steps:\n                  - log:\n                      message: \"hot: ${body}\"\n            otherwise:\n              steps:\n                - log:\n                    message: \"normal: ${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\n"
+   }
+  },
+  {
+   "id": 4,
+   "request": "Instead of logging the hot ones, send them to the seda:hot queue. Keep logging the normal ones.",
+   "check": {
+    "file_regex": "seda:hot",
+    "file_not_regex": "hot: \\$",
+    "log_regex": "^normal: \\d+",
+    "min_log": 0
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - choice:\n            when:\n              - simple: \"${body} >= 30\"\n                steps:\n                  - to:\n                      uri: seda:hot\n            otherwise:\n              steps:\n                - log:\n                    message: \"normal: ${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\n"
+   }
+  },
+  {
+   "id": 5,
+   "request": "Add a second route with id hot-consumer that consumes from seda:hot and logs \"hot from <the route id>: <the body>\".",
+   "check": {
+    "file_regex": "hot-consumer",
+    "log_regex": "^(hot from hot-consumer: \\d+|normal: \\d+)",
+    "min_log": 1,
+    "routes": 2
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - choice:\n            when:\n              - simple: \"${body} >= 30\"\n                steps:\n                  - to:\n                      uri: seda:hot\n            otherwise:\n              steps:\n                - log:\n                    message: \"normal: ${body}\"\n- route:\n    id: hot-consumer\n    from:\n      uri: seda:hot\n      steps:\n        - log:\n            message: \"hot from ${routeId}: ${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\n"
+   }
+  },
+  {
+   "id": 6,
+   "request": "Add error handling so that if any exception happens in a route, the error is logged and the message continues without failing.",
+   "check": {
+    "file_regex": "onException|errorHandler",
+    "log_regex": "^(hot from hot-consumer: \\d+|normal: \\d+)",
+    "min_log": 1,
+    "routes": 2
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- onException:\n    exception:\n      - java.lang.Exception\n    continued:\n      constant: \"true\"\n    steps:\n      - log:\n          message: \"error: ${exception.message}\"\n- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - choice:\n            when:\n              - simple: \"${body} >= 30\"\n                steps:\n                  - to:\n                      uri: seda:hot\n            otherwise:\n              steps:\n                - log:\n                    message: \"normal: ${body}\"\n- route:\n    id: hot-consumer\n    from:\n      uri: seda:hot\n      steps:\n        - log:\n            message: \"hot from ${routeId}: ${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\n"
+   }
+  },
+  {
+   "id": 7,
+   "request": "Move the 30 threshold into application.properties as hot.threshold and use it from the route.",
+   "check": {
+    "file_regex": "\\{\\{hot\\.threshold\\}\\}|\\$\\{properties:hot\\.threshold\\}",
+    "props_regex": "hot\\.threshold\\s*=\\s*30",
+    "log_regex": "^(hot from hot-consumer: \\d+|normal: \\d+)",
+    "min_log": 1,
+    "routes": 2
+   },
+   "reference": {
+    "timer-log.camel.yaml": "- onException:\n    exception:\n      - java.lang.Exception\n    continued:\n      constant: \"true\"\n    steps:\n      - log:\n          message: \"error: ${exception.message}\"\n- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - choice:\n            when:\n              - simple: \"${body} >= {{hot.threshold}}\"\n                steps:\n                  - to:\n                      uri: seda:hot\n            otherwise:\n              steps:\n                - log:\n                    message: \"normal: ${body}\"\n- route:\n    id: hot-consumer\n    from:\n      uri: seda:hot\n      steps:\n        - log:\n            message: \"hot from ${routeId}: ${body}\"\n",
+    "application.properties": "timer.period=5000\ngreeting.message=Hello Camel!\nhot.threshold=30\n"
+   }
+  },
+  {
+   "id": 8,
+   "request": "Rename the first route id from timer-log to sensor, and make its normal log step use the logger name sensor.",
+   "check": {
+    "file_regex": "id: sensor",
+    "file_regex2": "logName: sensor|loggerName: sensor|logger: sensor",
+    "log_regex": "^(hot from hot-consumer: \\d+|normal: \\d+)",
+    "min_log": 1,
+    "routes": 2
+   },
+   "reference": {}
+  }
+ ]
+}

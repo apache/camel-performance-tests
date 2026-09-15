@@ -1,0 +1,15 @@
+[
+  {"name": "timer-log", "prompt": "Simple timer that logs a hello message every second", "expect": "a log line with a hello message roughly once per second", "run_seconds": 8},
+  {"name": "cron-log", "prompt": "Scheduled task that logs every 5 seconds", "expect": "a log line every 5 seconds driven by a cron schedule", "run_seconds": 12},
+  {"name": "rest-api", "prompt": "REST API with hello endpoints", "expect": "an HTTP server starts and GET on a hello endpoint returns a greeting", "run_seconds": 12, "probe": "curl -s -m 3 http://localhost:8080/api/hello; echo; curl -s -m 3 http://localhost:8080/hello; echo"},
+  {"name": "routes", "prompt": "Define routes in YAML with Java beans", "expect": "a YAML route calls a Java bean and logs the bean's output", "run_seconds": 8},
+  {"name": "tui-hello-world", "prompt": "Say hello via TUI Send Message (F2) or CLI", "expect": "a route that can receive a message sent from the CLI or TUI and logs a hello for it", "run_seconds": 8},
+  {"name": "content-based-router", "prompt": "Route messages to different destinations based on message content using the Choice EIP", "expect": "messages with different content are logged to different branches via choice/when/otherwise", "run_seconds": 8},
+  {"name": "splitter", "prompt": "Split a batch of items into individual messages for processing", "expect": "one batch message is split and each item is logged separately", "run_seconds": 8},
+  {"name": "aggregator", "prompt": "Collect individual messages into a batch using the Aggregator EIP", "expect": "several individual messages are aggregated and one batch log line appears", "run_seconds": 10},
+  {"name": "circuit-breaker", "prompt": "Use the circuit breaker EIP for fault tolerance", "expect": "a circuitBreaker EIP wraps a failing step and the route keeps running", "run_seconds": 10},
+  {"name": "groovy", "prompt": "Use Groovy with extra dependencies and content-based routing", "expect": "a Groovy expression using a third-party dependency drives a choice and the result is logged", "run_seconds": 10},
+  {"name": "xslt", "prompt": "Basic XML transformation using XSLT style sheets", "expect": "an XML input is transformed by an XSLT stylesheet and the result is logged", "run_seconds": 8},
+  {"name": "message-size", "prompt": "Track message body and header sizes per endpoint", "expect": "routes produce messages of different sizes to different endpoints so sizes can be tracked", "run_seconds": 8},
+  {"name": "memory-leak", "prompt": "Simulates a memory leak for testing JFR Old Object Sample diagnostics", "expect": "a route keeps allocating and retaining memory and logs growth", "run_seconds": 8}
+]
