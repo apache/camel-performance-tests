@@ -107,3 +107,23 @@ were found (about 15 minutes of reading per run).
   those, and `run-suite.sh` runs `caffeinate` on macOS.
 - Keep the examples away from the model: never offer `camel_catalog_examples` or `camel_catalog_example_file` in
   `BENCH_TOOL_ALLOW` for a benchmark that uses the examples repository.
+
+## Round 2: k runs, a held-out set, services
+
+Added 2026-09-17 for the second series.
+
+- `run-suite.sh <tag> <k>` runs the suite k times as `<tag>-1 .. <tag>-k` and ends with `passk.py`, which prints
+  per-example passes out of k, **pass@k** (passed at least once) and **pass^k** (passed every time), the two
+  consistency measures of the MuleSoft integration-skill post so the series can be compared with it.
+- `BENCH_EXAMPLES=examples-intermediate.json BENCH_STEPWISE=0 run-suite.sh b 3` runs set B: six intermediate examples
+  the model has never been tested on (openapi-server, openapi-client, sql, artemis, mqtt, route-topology).
+  Each entry may declare, all visible in the JSON rather than hidden in the harness:
+  - `infra`: services started with `camel infra run <svc> --background` before the example and stopped after it
+    (postgres, artemis, mosquitto, kafka); the connection data from `camel infra get <svc> --json` is appended
+    to the prompt, as a developer would read it from the same command. Postgres needs about 80 s to come up.
+  - `seed`: files under `seed/<example>/` copied into every attempt folder before the model's files (the petstore
+    OpenAPI spec and sample payloads); the prompt lists them and says not to rewrite them.
+  - `hint`: one extra sentence in the prompt (the MQTT topic, the petstore base path).
+  - `pre` / `post`: shell commands run in this directory around the example (openapi-client starts the reference
+    petstore server from `seed/openapi-server-ref/` and stops it after).
+- Docker Desktop must be running for `infra`; `camel infra` pulls the images on first use.

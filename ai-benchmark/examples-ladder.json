@@ -1,0 +1,508 @@
+[
+ {
+  "name": "run-order-generator",
+  "example": "run/order-generator",
+  "level": "run",
+  "prompt": "A timer creates a shop order every five seconds: a Java bean hands out the order number, the body is the order as JSON, and the log shows each new order. The order feed every later example starts from",
+  "expect": "A timer creates a shop order every five seconds: a Java bean hands out the order number, the body is the order as JSON, and the log shows each new order. The order feed every later example starts from.",
+  "run_seconds": 12,
+  "require_files": [
+   "*.java"
+  ],
+  "log_regex": [
+   [
+    "(?s)\\{[^\\n]*\"[^\\n]*\\}.*\\n.*\\{[^\\n]*\"[^\\n]*\\}",
+    "two orders logged as JSON"
+   ]
+  ]
+ },
+ {
+  "name": "run-nightly-report",
+  "example": "run/nightly-report",
+  "level": "run",
+  "prompt": "A cron schedule runs the shop's inventory report, every ten seconds in the demo and nightly with a one-line change, and each run logs the stock counts with a timestamp",
+  "expect": "A cron schedule runs the shop's inventory report, every ten seconds in the demo and nightly with a one-line change, and each run logs the stock counts with a timestamp.",
+  "run_seconds": 25,
+  "log_regex": [
+   [
+    "(?s)\\.yaml:\\d+\\s*:[^\\n]*\\d{4}-\\d{2}-\\d{2}[^\\n]*\\d+.*\\n.*\\.yaml:\\d+\\s*:[^\\n]*\\d{4}-\\d{2}-\\d{2}",
+    "two report runs logged, each with a timestamp and the stock counts"
+   ]
+  ]
+ },
+ {
+  "name": "run-properties-and-profiles",
+  "example": "run/properties-and-profiles",
+  "level": "run",
+  "prompt": "A timer logs a welcome with the shop name and currency from application.properties; run with --profile=prod and application-prod.properties overrides both, so the same route greets with the production values",
+  "expect": "A timer logs a welcome with the shop name and currency from application.properties; run with --profile=prod and application-prod.properties overrides both, so the same route greets with the production values.",
+  "run_seconds": 8,
+  "require_files": [
+   "application-prod.properties"
+  ],
+  "log_regex": [
+   [
+    "\\.yaml:\\d+\\s*:[^\\n]*\\b(EUR|USD|DKK|GBP)\\b",
+    "the welcome logged with the currency from application.properties"
+   ]
+  ]
+ },
+ {
+  "name": "transform-json-transform",
+  "example": "transform/json-transform",
+  "level": "transform",
+  "prompt": "The shop's order in order.json is reshaped for the warehouse: jsonpath reads the order id and the number of lines into headers, jq builds the pick list with only sku and quantity per line, and both the order and the pick list are logged",
+  "expect": "The shop's order in order.json is reshaped for the warehouse: jsonpath reads the order id and the number of lines into headers, jq builds the pick list with only sku and quantity per line, and both the order and the pick list are logged.",
+  "seed": true,
+  "seed_files": [
+   "order.json"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "ORD-1001",
+    "the order ORD-1001 logged"
+   ],
+   [
+    "\"sku\"\\s*:\\s*\"CAMEL-TSHIRT\"",
+    "the pick list logged as JSON with the sku CAMEL-TSHIRT"
+   ]
+  ]
+ },
+ {
+  "name": "transform-xml-to-json",
+  "example": "transform/xml-to-json",
+  "level": "transform",
+  "prompt": "A supplier's XML order dropped in the inbox directory is read with the Jackson XML data format and written out as the shop's JSON with the Jackson JSON data format, both logged; no mapping code, the XML elements and attributes become JSON fields",
+  "expect": "A supplier's XML order dropped in the inbox directory is read with the Jackson XML data format and written out as the shop's JSON with the Jackson JSON data format, both logged; no mapping code, the XML elements and attributes become JSON fields.",
+  "seed": true,
+  "seed_files": [
+   "inbox/supplier-order.xml"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "<order",
+    "the XML order logged as it was read (the <order element)"
+   ],
+   [
+    "\"CAMEL-TSHIRT\"",
+    "the same order logged as JSON (CAMEL-TSHIRT as a JSON string)"
+   ]
+  ]
+ },
+ {
+  "name": "transform-csv-to-json",
+  "example": "transform/csv-to-json",
+  "level": "transform",
+  "prompt": "A CSV of invoices dropped in the inbox directory is read with the CSV data format, its header line naming the fields, split into one message per invoice, and each invoice is logged as JSON and written to the outbox directory as its own file",
+  "expect": "A CSV of invoices dropped in the inbox directory is read with the CSV data format, its header line naming the fields, split into one message per invoice, and each invoice is logged as JSON and written to the outbox directory as its own file.",
+  "seed": true,
+  "seed_files": [
+   "inbox/invoices.csv"
+  ],
+  "run_seconds": 10,
+  "output_files": [
+   [
+    "outbox/*.json",
+    3
+   ]
+  ],
+  "log_regex": [
+   [
+    "INV-2001",
+    "invoice INV-2001 logged"
+   ],
+   [
+    "INV-2003",
+    "invoice INV-2003 logged"
+   ],
+   [
+    "\"[a-zA-Z]+\"\\s*:\\s*\"INV-200\\d\"",
+    "an invoice logged as JSON (a quoted field with the value INV-200x)"
+   ]
+  ]
+ },
+ {
+  "name": "transform-data-mapping",
+  "example": "transform/data-mapping",
+  "level": "transform",
+  "prompt": "The shop's order in order.json is mapped field by field to the courier's shipment format, with renamed fields, a nested recipient, one parcel per line, a computed total and a service chosen from the country; the order is parsed to a map, the script shipment-mapping.groovy builds the shipment, and it is logged as JSON",
+  "expect": "The shop's order in order.json is mapped field by field to the courier's shipment format, with renamed fields, a nested recipient, one parcel per line, a computed total and a service chosen from the country; the order is parsed to a map, the script shipment-mapping.groovy builds the shipment, and it is logged as JSON.",
+  "seed": true,
+  "seed_files": [
+   "order.json",
+   "shipment-mapping.groovy"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "SHIP-1001",
+    "the shipment SHIP-1001 logged"
+   ],
+   [
+    "\"totalPieces\"\\s*:\\s*3",
+    "totalPieces 3 in the logged shipment JSON"
+   ],
+   [
+    "domestic",
+    "the domestic service in the logged shipment"
+   ]
+  ]
+ },
+ {
+  "name": "transform-groovy",
+  "example": "transform/groovy",
+  "level": "transform",
+  "prompt": "Two orders come in, one with a valid customer email and one with a bad one; a Groovy expression checks the address with Apache Commons Validator, a third-party library declared in application.properties, and the log shows one order accepted and one rejected",
+  "expect": "Two orders come in, one with a valid customer email and one with a bad one; a Groovy expression checks the address with Apache Commons Validator, a third-party library declared in application.properties, and the log shows one order accepted and one rejected.",
+  "seed": true,
+  "seed_files": [
+   "order-bad-email.json",
+   "order.json"
+  ],
+  "run_seconds": 10,
+  "require_text": {
+   "application.properties": "commons-validator"
+  },
+  "log_regex": [
+   [
+    "anna@example\\.com",
+    "anna@example.com logged as accepted"
+   ],
+   [
+    "not-an-address",
+    "not-an-address logged as rejected"
+   ]
+  ]
+ },
+ {
+  "name": "transform-xslt",
+  "example": "transform/xslt",
+  "level": "transform",
+  "prompt": "A supplier's XML order dropped in the inbox directory is transformed by the stylesheet packing-slip.xsl into the packing slip the warehouse prints, one item per line and the total pieces to pick, and the slip is logged",
+  "expect": "A supplier's XML order dropped in the inbox directory is transformed by the stylesheet packing-slip.xsl into the packing slip the warehouse prints, one item per line and the total pieces to pick, and the slip is logged.",
+  "seed": true,
+  "seed_files": [
+   "inbox/supplier-order.xml",
+   "packing-slip.xsl"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "<packingSlip",
+    "the packing slip logged (a <packingSlip element)"
+   ],
+   [
+    "<pieces>3</pieces>",
+    "<pieces>3</pieces> in the logged slip"
+   ],
+   [
+    "CAMEL-TSHIRT",
+    "CAMEL-TSHIRT in the logged slip"
+   ]
+  ]
+ },
+ {
+  "name": "route-content-based-router",
+  "example": "route/content-based-router",
+  "level": "route",
+  "prompt": "Three orders from three countries are read from the orders directory and a choice routes each by its country: the Danish order to local delivery, the German order to EU shipping without customs, the US order to export with a customs declaration; each branch logs what it did",
+  "expect": "Three orders from three countries are read from the orders directory and a choice routes each by its country: the Danish order to local delivery, the German order to EU shipping without customs, the US order to export with a customs declaration; each branch logs what it did.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*(local|copenhagen)).*$",
+    "ORD-1001 logged as local delivery"
+   ],
+   [
+    "(?im)^(?=.*ORD-1002)(?=.*\\bEU\\b).*$",
+    "ORD-1002 logged as EU shipping"
+   ],
+   [
+    "(?im)^(?=.*ORD-1003)(?=.*(export|customs)).*$",
+    "ORD-1003 logged as export with customs"
+   ]
+  ]
+ },
+ {
+  "name": "route-order-lines",
+  "example": "route/order-lines",
+  "level": "route",
+  "prompt": "Each order read from the orders directory is split into one message per line, the order id travels along in a header, and the log shows the order, one pick line per line, and the parent's confirmation that all lines went to picking",
+  "expect": "Each order read from the orders directory is split into one message per line, the order id travels along in a header, and the log shows the order, one pick line per line, and the parent's confirmation that all lines went to picking.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*CAMEL-TSHIRT).*$",
+    "a pick line for CAMEL-TSHIRT of ORD-1001"
+   ],
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*CAMEL-MUG).*$",
+    "a pick line for CAMEL-MUG of ORD-1001"
+   ],
+   [
+    "ORD-1002",
+    "order ORD-1002 logged"
+   ],
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*(all|\\b2\\b))(?=.*(line|pick)).*$",
+    "the confirmation that all lines of ORD-1001 went to picking"
+   ]
+  ]
+ },
+ {
+  "name": "route-aggregator",
+  "example": "route/aggregator",
+  "level": "route",
+  "prompt": "The warehouse reports each picked line on its own and the aggregator collects the lines of one order back into a shipment, correlated by the order id and complete when as many lines are in as the order had; each shipment is logged as JSON",
+  "expect": "The warehouse reports each picked line on its own and the aggregator collects the lines of one order back into a shipment, correlated by the order id and complete when as many lines are in as the order had; each shipment is logged as JSON.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 15,
+  "log_regex": [
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*CAMEL-TSHIRT)(?=.*CAMEL-MUG).*$",
+    "the shipment of ORD-1001 logged with both lines (CAMEL-TSHIRT and CAMEL-MUG)"
+   ],
+   [
+    "(?im)^(?=.*ORD-1002)(?=.*CAMEL-MUG)(?=.*\\b3\\b).*$",
+    "the shipment of ORD-1002 logged with 3 x CAMEL-MUG"
+   ]
+  ]
+ },
+ {
+  "name": "route-filter-and-multicast",
+  "example": "route/filter-and-multicast",
+  "level": "route",
+  "prompt": "Three orders are read from the orders directory; a filter lets only the paid ones through and a multicast sends each paid order to both the warehouse route and the invoicing route, which log their part; the pending order is logged as received and goes no further",
+  "expect": "Three orders are read from the orders directory; a filter lets only the paid ones through and a multicast sends each paid order to both the warehouse route and the invoicing route, which log their part; the pending order is logged as received and goes no further.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*(warehouse|pick)).*$",
+    "ORD-1001 logged by the warehouse route"
+   ],
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*(invoic|bill)).*$",
+    "ORD-1001 logged by the invoicing route"
+   ],
+   [
+    "ORD-1003",
+    "ORD-1003 logged as received"
+   ]
+  ],
+  "log_not_regex": [
+   "(?im)^(?=.*ORD-1003)(?=.*(warehouse|invoic|pick|bill)).*$"
+  ]
+ },
+ {
+  "name": "fail-well-error-handling",
+  "example": "fail-well/error-handling",
+  "level": "fail-well",
+  "prompt": "The three orders go to a payment provider: the first is charged at once, the second gets no answer twice and is charged on the third attempt after two retries logged as warnings, and the third is declined, logged as such and parked as a file for manual review",
+  "expect": "The three orders go to a payment provider: the first is charged at once, the second gets no answer twice and is charged on the third attempt after two retries logged as warnings, and the third is declined, logged as such and parked as a file for manual review.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 20,
+  "expected_errors": "(?i)payment|did not answer|declined|ConnectException|Failed delivery",
+  "log_regex": [
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*charged).*$",
+    "ORD-1001 logged as charged"
+   ],
+   [
+    "(?im)^(?=.*ORD-1002)(?=.*charged).*$",
+    "ORD-1002 logged as charged"
+   ],
+   [
+    "(?im)^(?=.*ORD-1003)(?=.*(declin|park|manual|review)).*$",
+    "ORD-1003 logged as declined and parked"
+   ],
+   [
+    "(?s)(WARN|retr|redeliver|attempt).*(WARN|retr|redeliver|attempt)",
+    "two retries logged (as warnings)"
+   ]
+  ]
+ },
+ {
+  "name": "fail-well-circuit-breaker",
+  "example": "fail-well/circuit-breaker",
+  "level": "fail-well",
+  "prompt": "A stock check calls the supplier every second; the supplier goes down for nine calls, the breaker opens after two failures in its window of four, answers from the fallback while open, tries the supplier again after five seconds and closes once a call succeeds; each line logs the breaker state",
+  "expect": "A stock check calls the supplier every second; the supplier goes down for nine calls, the breaker opens after two failures in its window of four, answers from the fallback while open, tries the supplier again after five seconds and closes once a call succeeds; each line logs the breaker state.",
+  "run_seconds": 25,
+  "expected_errors": "(?i)supplier|simulat|down",
+  "log_regex": [
+   [
+    "(?i)\\bOPEN\\b",
+    "the breaker logged as OPEN"
+   ],
+   [
+    "(?i)\\bCLOSED\\b",
+    "the breaker logged as CLOSED"
+   ],
+   [
+    "(?i)(fallback|last known|no answer)",
+    "the fallback answer logged while open"
+   ]
+  ]
+ },
+ {
+  "name": "connect-file-processing",
+  "example": "connect/file-processing",
+  "level": "connect",
+  "prompt": "A courier route copies five files into an inbox; the invoices are checked, archived under a month directory and moved to done, the invoice with a negative amount is rejected with a warning and moved to failed, and the driver's note is left alone because only .json files are picked up",
+  "expect": "A courier route copies five files into an inbox; the invoices are checked, archived under a month directory and moved to done, the invoice with a negative amount is rejected with a warning and moved to failed, and the driver's note is left alone because only .json files are picked up.",
+  "seed": true,
+  "seed_files": [
+   "samples/invoice-2001.json",
+   "samples/invoice-2002.json",
+   "samples/invoice-2003.json",
+   "samples/invoice-2004.json",
+   "samples/note-2005.txt"
+  ],
+  "run_seconds": 12,
+  "expected_errors": "(?i)Validation|Predicate|Rollback|negative|2003",
+  "require_files": [
+   "inbox/note-2005.txt"
+  ],
+  "output_files": [
+   [
+    "**/done/*.json",
+    3
+   ],
+   [
+    "**/failed/*",
+    1
+   ]
+  ],
+  "log_regex": [
+   [
+    "INV-2001",
+    "INV-2001 logged as archived"
+   ],
+   [
+    "INV-2002",
+    "INV-2002 logged as archived"
+   ],
+   [
+    "INV-2004",
+    "INV-2004 logged as archived"
+   ],
+   [
+    "(?im)^(?=.*(2003|negative))(?=.*(reject|fail|warn|invalid)).*$",
+    "invoice 2003 (the negative amount) logged as rejected"
+   ]
+  ]
+ },
+ {
+  "name": "connect-stock-api",
+  "example": "connect/stock-api",
+  "level": "connect",
+  "prompt": "The shop's stock service on port 8080: GET /stock returns the stock file, GET /stock/{sku} returns one SKU as JSON and a 404 with an error message for an unknown SKU",
+  "expect": "The shop's stock service on port 8080: GET /stock returns the stock file, GET /stock/{sku} returns one SKU as JSON and a 404 with an error message for an unknown SKU.",
+  "seed": true,
+  "seed_files": [
+   "stock.json"
+  ],
+  "run_seconds": 15,
+  "probe": "curl -s localhost:8080/stock/CAMEL-MUG; echo; curl -s -o /dev/null -w '%{http_code}' localhost:8080/stock/CAMEL-SOCKS; echo; curl -s localhost:8080/stock | head -c 400",
+  "probe_regex": "(?s)CAMEL-MUG[^\\n]*42.*\\n404\\n.*CAMEL-TSHIRT"
+ },
+ {
+  "name": "connect-http-client",
+  "example": "connect/http-client",
+  "level": "connect",
+  "prompt": "Every line of the three orders is checked against the stock service over HTTP, served by the same example; the log shows each line as ok, or back-order when the stock is short, with the stock level from the response",
+  "expect": "Every line of the three orders is checked against the stock service over HTTP, served by the same example; the log shows each line as ok, or back-order when the stock is short, with the stock level from the response.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json",
+   "stock.json"
+  ],
+  "run_seconds": 15,
+  "log_regex": [
+   [
+    "(?im)^(?=.*ORD-1003)(?=.*CAMEL-CAP)(?=.*(back|short|\\b0\\b)).*$",
+    "ORD-1003 CAMEL-CAP logged as back-order with the stock level"
+   ],
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*CAMEL-TSHIRT)(?=.*\\b120\\b).*$",
+    "ORD-1001 CAMEL-TSHIRT logged as ok with 120 in stock"
+   ]
+  ]
+ },
+ {
+  "name": "contracts-openapi-server",
+  "example": "contracts/openapi-server",
+  "level": "contracts",
+  "prompt": "The stock API contract first: stock-api.json is the OpenAPI contract, the REST DSL serves its three operations on port 8080 with request validation, GET /stock/{sku} answers from a file or 404, POST /stock/{sku}/reserve answers 200, 409 when the stock is short or 400 for a bad reservation, and /openapi serves the contract",
+  "expect": "The stock API contract first: stock-api.json is the OpenAPI contract, the REST DSL serves its three operations on port 8080 with request validation, GET /stock/{sku} answers from a file or 404, POST /stock/{sku}/reserve answers 200, 409 when the stock is short or 400 for a bad reservation, and /openapi serves the contract.",
+  "seed": true,
+  "seed_files": [
+   "stock-api.json",
+   "stock.json"
+  ],
+  "run_seconds": 15,
+  "probe": "curl -s localhost:8080/api/stock/CAMEL-MUG; echo; curl -s -o /dev/null -w '%{http_code}\\n' -X POST -H 'Content-Type: application/json' -d '{\"orderId\": \"ORD-1001\", \"qty\": 2}' localhost:8080/api/stock/CAMEL-MUG/reserve; curl -s -o /dev/null -w '%{http_code}\\n' -X POST -H 'Content-Type: application/json' -d '{\"orderId\": \"ORD-1003\", \"qty\": 1}' localhost:8080/api/stock/CAMEL-CAP/reserve; curl -s -o /dev/null -w '%{http_code}\\n' -X POST -H 'Content-Type: application/json' localhost:8080/api/stock/CAMEL-MUG/reserve; curl -s localhost:8080/openapi localhost:8080/api/openapi | head -c 300",
+  "probe_regex": "(?s)CAMEL-MUG[^\\n]*42.*\\n200\\n409\\n400\\n.*openapi"
+ },
+ {
+  "name": "contracts-openapi-client",
+  "example": "contracts/openapi-client",
+  "level": "contracts",
+  "prompt": "The picking desk reserves stock for every order line by calling the stock API by contract: rest-openapi turns the operationId reserveStock into the HTTP call from stock-api.json; the log shows each reservation and one 409 for the cap that is out of stock. Needs the openapi-server example running",
+  "expect": "The picking desk reserves stock for every order line by calling the stock API by contract: rest-openapi turns the operationId reserveStock into the HTTP call from stock-api.json; the log shows each reservation and one 409 for the cap that is out of stock. Needs the openapi-server example running.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json",
+   "stock-api.json"
+  ],
+  "run_seconds": 20,
+  "expected_errors": "409|CAMEL-CAP|HttpOperationFailed",
+  "hint": "The stock API server (the openapi-server example) is already running at http://localhost:8080/api and its contract is the file stock-api.json.",
+  "pre": "./ref-server.sh start",
+  "post": "./ref-server.sh stop",
+  "log_regex": [
+   [
+    "(?im)^(?=.*CAMEL-CAP)(?=.*409).*$",
+    "the 409 for CAMEL-CAP logged"
+   ],
+   [
+    "(?im)^(?=.*ORD-1001)(?=.*CAMEL-TSHIRT)(?=.*reserv).*$",
+    "the reservation of CAMEL-TSHIRT for ORD-1001 logged"
+   ]
+  ]
+ }
+]

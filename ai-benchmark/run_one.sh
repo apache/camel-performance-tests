@@ -36,7 +36,13 @@ pid=$!
 ( sleep $((secs + 45)); pkill -TERM -f -- "--max-seconds=$secs --logging-color=false" 2>/dev/null; kill -TERM $pid 2>/dev/null ) &
 watchdog=$!
 if [[ -n "$probe" ]]; then
-  sleep 7
+  # ladder (09-19): wait for the routes to be up before probing (jbang resolution before the first log line took
+  # longer than the fixed 7 s in the dry run: the stock API answered 000 three times while the log showed it started)
+  for i in $(seq 1 $((secs > 4 ? secs - 3 : 1))); do
+    grep -q 'Routes startup\|Started route\|HttpServer started' run.log 2>/dev/null && break
+    sleep 1
+  done
+  sleep 2
   eval "$probe" > probe.log 2>&1
 fi
 wait $pid

@@ -63,8 +63,13 @@ def write_files(text, folder):
             f.write(text.strip() + "\n")
         return ["route.camel.yaml (fallback)"]
     for i in range(1, len(parts), 2):
-        name = os.path.basename(parts[i].strip())
+        name = os.path.basename(parts[i].strip().rstrip("/"))
         content = parts[i + 1].strip("\n") + "\n"
+        # ladder (09-19): a "=== FILE: orders/ ===" entry (a directory the model lists) has no file name; skip it
+        # instead of opening the attempt folder as a file (the first suite of the full run died on it)
+        if not name or os.path.isdir(os.path.join(folder, name)):
+            written.append(name + " (skipped, a directory)")
+            continue
         with open(os.path.join(folder, name), "w") as f:
             f.write(content)
         written.append(name)

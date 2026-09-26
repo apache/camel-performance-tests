@@ -1,0 +1,235 @@
+[
+  {
+    "name": "run-order-generator",
+    "example": "run/order-generator",
+    "level": "run",
+    "prompt": "A timer creates a shop order every five seconds: a Java bean hands out the order number, the body is the order as JSON, and the log shows each new order. The order feed every later example starts from",
+    "expect": "A timer creates a shop order every five seconds: a Java bean hands out the order number, the body is the order as JSON, and the log shows each new order. The order feed every later example starts from.",
+    "run_seconds": 12,
+    "require_files": [
+      "*.java"
+    ],
+    "log_regex": [
+      [
+        "(?s)\\{[^\\n]*\"[^\\n]*\\}.*\\n.*\\{[^\\n]*\"[^\\n]*\\}",
+        "two orders logged as JSON"
+      ]
+    ]
+  },
+  {
+    "name": "run-nightly-report",
+    "example": "run/nightly-report",
+    "level": "run",
+    "prompt": "A cron schedule runs the shop's inventory report, every ten seconds in the demo and nightly with a one-line change, and each run logs the stock counts with a timestamp",
+    "expect": "A cron schedule runs the shop's inventory report, every ten seconds in the demo and nightly with a one-line change, and each run logs the stock counts with a timestamp.",
+    "run_seconds": 25,
+    "log_regex": [
+      [
+        "(?s)\\.yaml:\\d+\\s*:[^\\n]*\\d{4}-\\d{2}-\\d{2}[^\\n]*\\d+.*\\n.*\\.yaml:\\d+\\s*:[^\\n]*\\d{4}-\\d{2}-\\d{2}",
+        "two report runs logged, each with a timestamp and the stock counts"
+      ]
+    ]
+  },
+  {
+    "name": "run-properties-and-profiles",
+    "example": "run/properties-and-profiles",
+    "level": "run",
+    "prompt": "A timer logs a welcome with the shop name and currency from application.properties; run with --profile=prod and application-prod.properties overrides both, so the same route greets with the production values",
+    "expect": "A timer logs a welcome with the shop name and currency from application.properties; run with --profile=prod and application-prod.properties overrides both, so the same route greets with the production values.",
+    "run_seconds": 8,
+    "require_files": [
+      "application-prod.properties"
+    ],
+    "log_regex": [
+      [
+        "\\.yaml:\\d+\\s*:[^\\n]*\\b(EUR|USD|DKK|GBP)\\b",
+        "the welcome logged with the currency from application.properties"
+      ]
+    ]
+  },
+  {
+    "name": "transform-json-transform",
+    "example": "transform/json-transform",
+    "level": "transform",
+    "prompt": "The shop's order in order.json is reshaped for the warehouse: jsonpath reads the order id and the number of lines into headers, jq builds the pick list with only sku and quantity per line, and both the order and the pick list are logged",
+    "expect": "The shop's order in order.json is reshaped for the warehouse: jsonpath reads the order id and the number of lines into headers, jq builds the pick list with only sku and quantity per line, and both the order and the pick list are logged.",
+    "seed": true,
+    "seed_files": [
+      "order.json"
+    ],
+    "run_seconds": 10,
+    "log_regex": [
+      [
+        "ORD-1001",
+        "the order ORD-1001 logged"
+      ],
+      [
+        "\"sku\"\\s*:\\s*\"CAMEL-TSHIRT\"",
+        "the pick list logged as JSON with the sku CAMEL-TSHIRT"
+      ]
+    ]
+  },
+  {
+    "name": "transform-xml-to-json",
+    "example": "transform/xml-to-json",
+    "level": "transform",
+    "prompt": "A supplier's XML order dropped in the inbox directory is read with the Jackson XML data format and written out as the shop's JSON with the Jackson JSON data format, both logged; no mapping code, the XML elements and attributes become JSON fields",
+    "expect": "A supplier's XML order dropped in the inbox directory is read with the Jackson XML data format and written out as the shop's JSON with the Jackson JSON data format, both logged; no mapping code, the XML elements and attributes become JSON fields.",
+    "seed": true,
+    "seed_files": [
+      "inbox/supplier-order.xml"
+    ],
+    "run_seconds": 10,
+    "log_regex": [
+      [
+        "<order",
+        "the XML order logged as it was read (the <order element)"
+      ],
+      [
+        "\"CAMEL-TSHIRT\"",
+        "the same order logged as JSON (CAMEL-TSHIRT as a JSON string)"
+      ]
+    ]
+  },
+  {
+    "name": "transform-xslt",
+    "example": "transform/xslt",
+    "level": "transform",
+    "prompt": "A supplier's XML order dropped in the inbox directory is transformed by the stylesheet packing-slip.xsl into the packing slip the warehouse prints, one item per line and the total pieces to pick, and the slip is logged",
+    "expect": "A supplier's XML order dropped in the inbox directory is transformed by the stylesheet packing-slip.xsl into the packing slip the warehouse prints, one item per line and the total pieces to pick, and the slip is logged.",
+    "seed": true,
+    "seed_files": [
+      "inbox/supplier-order.xml",
+      "packing-slip.xsl"
+    ],
+    "run_seconds": 10,
+    "log_regex": [
+      [
+        "<packingSlip",
+        "the packing slip logged (a <packingSlip element)"
+      ],
+      [
+        "<pieces>3</pieces>",
+        "<pieces>3</pieces> in the logged slip"
+      ],
+      [
+        "CAMEL-TSHIRT",
+        "CAMEL-TSHIRT in the logged slip"
+      ]
+    ]
+  },
+  {
+    "name": "route-content-based-router",
+    "example": "route/content-based-router",
+    "level": "route",
+    "prompt": "Three orders from three countries are read from the orders directory and a choice routes each by its country: the Danish order to local delivery, the German order to EU shipping without customs, the US order to export with a customs declaration; each branch logs what it did",
+    "expect": "Three orders from three countries are read from the orders directory and a choice routes each by its country: the Danish order to local delivery, the German order to EU shipping without customs, the US order to export with a customs declaration; each branch logs what it did.",
+    "seed": true,
+    "seed_files": [
+      "orders/order-1001.json",
+      "orders/order-1002.json",
+      "orders/order-1003.json"
+    ],
+    "run_seconds": 10,
+    "log_regex": [
+      [
+        "(?im)^(?=.*ORD-1001)(?=.*(local|copenhagen)).*$",
+        "ORD-1001 logged as local delivery"
+      ],
+      [
+        "(?im)^(?=.*ORD-1002)(?=.*\\bEU\\b).*$",
+        "ORD-1002 logged as EU shipping"
+      ],
+      [
+        "(?im)^(?=.*ORD-1003)(?=.*(export|customs)).*$",
+        "ORD-1003 logged as export with customs"
+      ]
+    ]
+  },
+  {
+    "name": "route-order-lines",
+    "example": "route/order-lines",
+    "level": "route",
+    "prompt": "Each order read from the orders directory is split into one message per line, the order id travels along in a header, and the log shows the order, one pick line per line, and the parent's confirmation that all lines went to picking",
+    "expect": "Each order read from the orders directory is split into one message per line, the order id travels along in a header, and the log shows the order, one pick line per line, and the parent's confirmation that all lines went to picking.",
+    "seed": true,
+    "seed_files": [
+      "orders/order-1001.json",
+      "orders/order-1002.json",
+      "orders/order-1003.json"
+    ],
+    "run_seconds": 10,
+    "log_regex": [
+      [
+        "(?im)^(?=.*ORD-1001)(?=.*CAMEL-TSHIRT).*$",
+        "a pick line for CAMEL-TSHIRT of ORD-1001"
+      ],
+      [
+        "(?im)^(?=.*ORD-1001)(?=.*CAMEL-MUG).*$",
+        "a pick line for CAMEL-MUG of ORD-1001"
+      ],
+      [
+        "ORD-1002",
+        "order ORD-1002 logged"
+      ],
+      [
+        "(?im)^(?=.*ORD-1001)(?=.*(all|\\b2\\b))(?=.*(line|pick)).*$",
+        "the confirmation that all lines of ORD-1001 went to picking"
+      ]
+    ]
+  },
+  {
+    "name": "route-filter-and-multicast",
+    "example": "route/filter-and-multicast",
+    "level": "route",
+    "prompt": "Three orders are read from the orders directory; a filter lets only the paid ones through and a multicast sends each paid order to both the warehouse route and the invoicing route, which log their part; the pending order is logged as received and goes no further",
+    "expect": "Three orders are read from the orders directory; a filter lets only the paid ones through and a multicast sends each paid order to both the warehouse route and the invoicing route, which log their part; the pending order is logged as received and goes no further.",
+    "seed": true,
+    "seed_files": [
+      "orders/order-1001.json",
+      "orders/order-1002.json",
+      "orders/order-1003.json"
+    ],
+    "run_seconds": 10,
+    "log_regex": [
+      [
+        "(?im)^(?=.*ORD-1001)(?=.*(warehouse|pick)).*$",
+        "ORD-1001 logged by the warehouse route"
+      ],
+      [
+        "(?im)^(?=.*ORD-1001)(?=.*(invoic|bill)).*$",
+        "ORD-1001 logged by the invoicing route"
+      ],
+      [
+        "ORD-1003",
+        "ORD-1003 logged as received"
+      ]
+    ],
+    "log_not_regex": [
+      "(?im)^(?=.*ORD-1003)(?=.*(warehouse|invoic|pick|bill)).*$"
+    ]
+  },
+  {
+    "name": "fail-well-circuit-breaker",
+    "example": "fail-well/circuit-breaker",
+    "level": "fail-well",
+    "prompt": "A stock check calls the supplier every second; the supplier goes down for nine calls, the breaker opens after two failures in its window of four, answers from the fallback while open, tries the supplier again after five seconds and closes once a call succeeds; each line logs the breaker state",
+    "expect": "A stock check calls the supplier every second; the supplier goes down for nine calls, the breaker opens after two failures in its window of four, answers from the fallback while open, tries the supplier again after five seconds and closes once a call succeeds; each line logs the breaker state.",
+    "run_seconds": 25,
+    "expected_errors": "(?i)supplier|simulat|down",
+    "log_regex": [
+      [
+        "(?i)\\bOPEN\\b",
+        "the breaker logged as OPEN"
+      ],
+      [
+        "(?i)\\bCLOSED\\b",
+        "the breaker logged as CLOSED"
+      ],
+      [
+        "(?i)(fallback|last known|no answer)",
+        "the fallback answer logged while open"
+      ]
+    ]
+  }
+]

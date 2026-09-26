@@ -23,8 +23,9 @@
    "request": "Set the body to a random number between 0 and 40 instead of the greeting message.",
    "check": {
     "file_regex": "random",
-    "log_regex": "^\\d{1,2}$",
-    "min_log": 1
+    "log_regex": "(^|\\D)\\d{1,2}$",
+    "min_log": 1,
+    "note": "round 2: the number may follow a label (run r2-baseline logged 'Random number: 22'); round 1 required the bare number and counted that as a strict failure in runs 4, 6, 20 and r2-baseline"
    },
    "reference": {
     "timer-log.camel.yaml": "- route:\n    id: timer-log\n    from:\n      uri: timer\n      parameters:\n        timerName: tick\n        period: \"{{timer.period}}\"\n      steps:\n        - setBody:\n            expression:\n              simple:\n                expression: \"${random(0,40)}\"\n        - log:\n            message: \"${body}\"\n",

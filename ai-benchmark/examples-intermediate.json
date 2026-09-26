@@ -1,0 +1,61 @@
+[
+ {
+  "name": "sql",
+  "prompt": "Use a SQL database with Camel and Postgres",
+  "infra": [
+   "postgres"
+  ],
+  "expect": "a table is created, a row inserted and a periodic select logs the rows from the running Postgres",
+  "run_seconds": 15
+ },
+ {
+  "name": "artemis",
+  "prompt": "Setup connection factory to a remote Apache ActiveMQ Artemis messaging broker",
+  "infra": [
+   "artemis"
+  ],
+  "expect": "a producer sends messages to a JMS queue on the running Artemis broker and a consumer logs them",
+  "run_seconds": 15
+ },
+ {
+  "name": "mqtt",
+  "prompt": "Receive MQTT events from an external MQTT broker",
+  "infra": [
+   "mosquitto"
+  ],
+  "hint": "Events are published to the topic `temperature` as JSON objects with a numeric `value` field, for example {\"value\": 25}.",
+  "expect": "a route subscribes to the temperature topic on the running broker, reads the value field and logs each event",
+  "run_seconds": 15,
+  "probe": "c=$(docker ps -q --filter ancestor=$(docker ps --format '{{.Image}}' | grep -i mosquitto | head -1)); for v in 25 15 30; do docker exec $c mosquitto_pub -h localhost -t temperature -m \"{\\\"value\\\": $v}\"; sleep 1; done; echo published",
+  "probe_regex": "published"
+ },
+ {
+  "name": "route-topology",
+  "prompt": "Demonstrates inter-route topology with triggers, shared routes, and external systems",
+  "infra": [
+   "kafka"
+  ],
+  "expect": "several routes connected through direct: and kafka: endpoints; a timer generates orders that flow through a shared validation route to Kafka and a consumer logs them",
+  "run_seconds": 20
+ },
+ {
+  "name": "ftp",
+  "prompt": "Integrate ActiveMQ messaging with an FTP server",
+  "infra": [
+   "artemis",
+   "ftp"
+  ],
+  "hint": "Messages arrive on the JMS queue `cheese` and each one must be uploaded as a file to the FTP server.",
+  "expect": "a route consumes the cheese queue on the running Artemis broker, logs each message and writes it as a file to the running FTP server",
+  "run_seconds": 30,
+  "probe": "sleep 14; pid=$(camel ps 2>/dev/null | awk 'NR==2{print $1}'); camel cmd send $pid --endpoint=jms:cheese --body='hello ftp' --logging-color=false 2>&1 | sed 's/\\x1b\\[[0-9;]*m//g' | grep -i 'sent\\|error' | head -2",
+  "probe_regex": "Sent \\(success\\)"
+ },
+ {
+  "name": "genai-observability",
+  "prompt": "Observe LangChain4j LLM calls with OpenTelemetry gen_ai spans and Micrometer metrics",
+  "hint": "Ollama is running at http://localhost:11434 with the model `qwen3.6:35b-a3b`; the Camel CLI needs the dependencies camel-langchain4j-chat, camel-ai-observability and langchain4j-ollama, declared with camel.jbang.dependencies in application.properties.",
+  "expect": "a timer route sends a prompt to the local Ollama through langchain4j-chat and logs the reply and the model name; AI observability is enabled",
+  "run_seconds": 45
+ }
+]

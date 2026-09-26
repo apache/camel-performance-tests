@@ -1,0 +1,109 @@
+[
+ {
+  "name": "run-order-generator",
+  "example": "run/order-generator",
+  "level": "run",
+  "prompt": "A timer creates a shop order every five seconds: a Java bean hands out the order number, the body is the order as JSON, and the log shows each new order. The order feed every later example starts from",
+  "expect": "A timer creates a shop order every five seconds: a Java bean hands out the order number, the body is the order as JSON, and the log shows each new order. The order feed every later example starts from.",
+  "run_seconds": 12,
+  "require_files": [
+   "*.java"
+  ],
+  "log_regex": [
+   "(?s)\\{[^\\n]*\"[^\\n]*\\}.*\\n.*\\{[^\\n]*\"[^\\n]*\\}"
+  ]
+ },
+ {
+  "name": "transform-json-transform",
+  "example": "transform/json-transform",
+  "level": "transform",
+  "prompt": "The shop's order in order.json is reshaped for the warehouse: jsonpath reads the order id and the number of lines into headers, jq builds the pick list with only sku and quantity per line, and both the order and the pick list are logged",
+  "expect": "The shop's order in order.json is reshaped for the warehouse: jsonpath reads the order id and the number of lines into headers, jq builds the pick list with only sku and quantity per line, and both the order and the pick list are logged.",
+  "seed": true,
+  "seed_files": [
+   "order.json"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   "ORD-1001",
+   "\"sku\"\\s*:\\s*\"CAMEL-TSHIRT\""
+  ]
+ },
+ {
+  "name": "route-content-based-router",
+  "example": "route/content-based-router",
+  "level": "route",
+  "prompt": "Three orders from three countries are read from the orders directory and a choice routes each by its country: the Danish order to local delivery, the German order to EU shipping without customs, the US order to export with a customs declaration; each branch logs what it did",
+  "expect": "Three orders from three countries are read from the orders directory and a choice routes each by its country: the Danish order to local delivery, the German order to EU shipping without customs, the US order to export with a customs declaration; each branch logs what it did.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 10,
+  "log_regex": [
+   "(?im)^(?=.*ORD-1001)(?=.*(local|copenhagen)).*$",
+   "(?im)^(?=.*ORD-1002)(?=.*\\bEU\\b).*$",
+   "(?im)^(?=.*ORD-1003)(?=.*(export|customs)).*$"
+  ]
+ },
+ {
+  "name": "fail-well-error-handling",
+  "example": "fail-well/error-handling",
+  "level": "fail-well",
+  "prompt": "The three orders go to a payment provider: the first is charged at once, the second gets no answer twice and is charged on the third attempt after two retries logged as warnings, and the third is declined, logged as such and parked as a file for manual review",
+  "expect": "The three orders go to a payment provider: the first is charged at once, the second gets no answer twice and is charged on the third attempt after two retries logged as warnings, and the third is declined, logged as such and parked as a file for manual review.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json"
+  ],
+  "run_seconds": 20,
+  "expected_errors": "(?i)payment|did not answer|declined|ConnectException|Failed delivery",
+  "log_regex": [
+   "(?im)^(?=.*ORD-1001)(?=.*charged).*$",
+   "(?im)^(?=.*ORD-1002)(?=.*charged).*$",
+   "(?im)^(?=.*ORD-1003)(?=.*(declin|park|manual|review)).*$",
+   "(?s)(WARN|retr|redeliver|attempt).*(WARN|retr|redeliver|attempt)"
+  ]
+ },
+ {
+  "name": "connect-stock-api",
+  "example": "connect/stock-api",
+  "level": "connect",
+  "prompt": "The shop's stock service on port 8080: GET /stock returns the stock file, GET /stock/{sku} returns one SKU as JSON and a 404 with an error message for an unknown SKU",
+  "expect": "The shop's stock service on port 8080: GET /stock returns the stock file, GET /stock/{sku} returns one SKU as JSON and a 404 with an error message for an unknown SKU.",
+  "seed": true,
+  "seed_files": [
+   "stock.json"
+  ],
+  "run_seconds": 15,
+  "probe": "curl -s localhost:8080/stock/CAMEL-MUG; echo; curl -s -o /dev/null -w '%{http_code}' localhost:8080/stock/CAMEL-SOCKS; echo; curl -s localhost:8080/stock | head -c 400",
+  "probe_regex": "(?s)CAMEL-MUG[^\\n]*42.*\\n404\\n.*CAMEL-TSHIRT"
+ },
+ {
+  "name": "contracts-openapi-client",
+  "example": "contracts/openapi-client",
+  "level": "contracts",
+  "prompt": "The picking desk reserves stock for every order line by calling the stock API by contract: rest-openapi turns the operationId reserveStock into the HTTP call from stock-api.json; the log shows each reservation and one 409 for the cap that is out of stock. Needs the openapi-server example running",
+  "expect": "The picking desk reserves stock for every order line by calling the stock API by contract: rest-openapi turns the operationId reserveStock into the HTTP call from stock-api.json; the log shows each reservation and one 409 for the cap that is out of stock. Needs the openapi-server example running.",
+  "seed": true,
+  "seed_files": [
+   "orders/order-1001.json",
+   "orders/order-1002.json",
+   "orders/order-1003.json",
+   "stock-api.json"
+  ],
+  "run_seconds": 20,
+  "expected_errors": "409|CAMEL-CAP|HttpOperationFailed",
+  "hint": "The stock API server (the openapi-server example) is already running at http://localhost:8080/api and its contract is the file stock-api.json.",
+  "pre": "./ref-server.sh start",
+  "post": "./ref-server.sh stop",
+  "log_regex": [
+   "(?im)^(?=.*CAMEL-CAP)(?=.*409).*$",
+   "(?im)^(?=.*ORD-1001)(?=.*CAMEL-TSHIRT)(?=.*reserv).*$"
+  ]
+ }
+]
