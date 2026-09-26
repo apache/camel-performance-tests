@@ -23,7 +23,7 @@ MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:9090/mcp")
 HERE = os.path.dirname(os.path.abspath(__file__))
 TAG = os.environ.get("BENCH_TAG", "mcp-" + MODEL.replace(":", "_").replace("/", "_"))
 OUT = os.path.join(HERE, "stepwise", TAG)
-MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "12"))
+MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "20"))
 # round 2: BENCH_REFERENCE=1 skips the model and applies each step's reference files instead, to check the steps file itself
 REFERENCE = os.environ.get("BENCH_REFERENCE") == "1"
 TOOL_RESULT_CAP = 6000
