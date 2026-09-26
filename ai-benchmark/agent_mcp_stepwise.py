@@ -13,7 +13,7 @@ Env: BENCH_MODEL (ollama model), MCP_URL (default http://127.0.0.1:9090/mcp), BE
 BENCH_STEPS (the steps file, default steps.json),
 BENCH_TOOL_CALLS (max tool calls per step, default 12).
 """
-import difflib, json, os, re, sys, time, urllib.request
+import difflib, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mcp_client import McpClient  # noqa: E402
 
@@ -24,19 +24,26 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TAG = os.environ.get("BENCH_TAG", "mcp-" + MODEL.replace(":", "_").replace("/", "_"))
 OUT = os.path.join(HERE, "stepwise", TAG)
 MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "12"))
+# round 2: BENCH_REFERENCE=1 skips the model and applies each step's reference files instead, to check the steps file itself
+REFERENCE = os.environ.get("BENCH_REFERENCE") == "1"
 TOOL_RESULT_CAP = 6000
 
 SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "camel_validate_source", "camel_get_files", "camel_write_file",
+          "camel_edit_file",
           "camel_run", "camel_control", "camel_get_log", "camel_get_errors", "camel_eval_expression", "camel_error_diagnose"]
 EXTRA = ["camel_catalog_docs", "camel_component_properties", "camel_configuration_validate"]
+# CAMEL-24834 tool-group experiment: BENCH_EXTRA_TOOLS=camel_execute_sql,camel_get_datasources adds a group to the set
+EXTRA += [t for t in os.environ.get("BENCH_EXTRA_TOOLS", "").split(",") if t]
 
 SYSTEM = (
     "You are an Apache Camel assistant helping a developer edit a running Camel integration through the Camel MCP server.\n\n"
     "The project directory is {directory}. The integration {name} is already running from it in dev mode: files you write are "
     "reloaded automatically.\n\n"
     "Guidelines:\n"
-    "- To edit: camel_get_files (directory, optionally file) to read, then camel_write_file (directory, file, content) with the "
-    "complete file. Invalid YAML or properties is refused with errors: fix them (camel_catalog_doc has the option names) and write again.\n"
+    "- To edit: camel_get_files (directory, optionally file) to read, then camel_edit_file (directory, file, find, replace) to "
+    "change one part of it: find is the lines as they stand in the file and must occur once. camel_write_file (directory, file, "
+    "content) writes a whole file, for a new one. Invalid YAML or properties is refused with errors: fix them "
+    "(camel_catalog_doc has the option names) and try again.\n"
     "- camel_validate_source checks content before writing; camel_eval_expression checks a simple expression; camel_get_log and "
     "camel_get_errors show what the running integration did after a reload.\n"
     "- camel_catalog_sample (name) shows a validated YAML sample of an EIP and where it goes (top level or step): use it "
@@ -49,7 +56,9 @@ SYSTEM = (
 
 
 def ollama_chat(messages, tools):
-    body = json.dumps({"model": MODEL, "messages": messages, "tools": tools, "stream": False,
+    # thinking off, as the Camel CLI's own Ollama client sends and as the one-shot harness does: with it on, four of
+    # 33 HTTP steps in series s5 spent 4-8 minutes and 12-28k tokens and answered nothing (CAMEL-24886)
+    body = json.dumps({"model": MODEL, "messages": messages, "tools": tools, "stream": False, "think": False,
                        "options": {"temperature": 0.2, "num_ctx": 32768}}).encode()
     req = urllib.request.Request(HOST + "/api/chat", data=body, headers={"Content-Type": "application/json"})
     t0 = time.time()
@@ -97,9 +106,129 @@ def log_lines(mcp, name, limit=40):
     return []
 
 
+def tod(t):
+    """A log record's time as seconds of the day; None when it cannot be read."""
+    try:
+        t = (t or "").split("T")[-1].split(" ")[-1]
+        h, m, sec = t.split(":")[:3]
+        return int(h) * 3600 + int(m) * 60 + float(sec)
+    except Exception:
+        return None
+
+
+def is_reload(l):
+    m = (l.get("message") or l.get("msg") or "")
+    return "Routes reloaded summary" in m or "Error reloading routes" in m or "Reloading properties" in m
+
+
+def reload_key(l):
+    return (l.get("time") or l.get("timestamp") or "") + "|" + (l.get("message") or l.get("msg") or "")[:80]
+
+
+def error_key(l):
+    return (l.get("time") or l.get("timestamp") or "") + "|" + (l.get("message") or l.get("msg") or "")[:120]
+
+
+def await_reload(mcp, name, seen, tries=12):
+    """Wait (up to tries*2 s) for a reload record newer than seen; macOS polls the WatchService about every 10 s."""
+    for _ in range(tries):
+        time.sleep(2)
+        if any(reload_key(l) not in seen for l in log_lines(mcp, name, 150) if isinstance(l, dict) and is_reload(l)):
+            return True
+    return False
+
+
+def apply_reference(project, cfg, reference, mcp, name, before=None):
+    """Write a step's reference files the way a person does: the properties (and any other file) first, then the route.
+
+    Not one batch: dev mode reloads the routes before it reloads the properties, so a route written in the same poll
+    as the property it uses fails to start ("Property with key [shop.currency] not found") and the later properties
+    reload does not retry it. Writing the other files first, and letting that reload land, is what the model's own
+    pace does for free. The step's reload baseline is re-taken just before the route is written, so the caller waits
+    for the route's reload and not for the one the first write already triggered.
+    """
+    route_file = cfg["route_file"]
+    others = [f for f in reference if f != route_file]
+
+    def write(fname):
+        os.makedirs(os.path.dirname(os.path.join(project, fname)) or project, exist_ok=True)
+        with open(os.path.join(project, fname), "w") as f:
+            f.write(reference[fname])
+
+    def reloads():
+        return {reload_key(l) for l in log_lines(mcp, name, 150) if isinstance(l, dict) and is_reload(l)}
+
+    if others and route_file in reference:
+        seen = reloads()
+        for fname in others:
+            write(fname)
+        await_reload(mcp, name, seen)
+        if before is not None:
+            before["reload_records"] = reloads()
+        write(route_file)
+    else:
+        for fname in reference:
+            write(fname)
+    return len(reference)
+
+
+def error_snapshot(mcp, name):
+    """The ERROR records in the log window and the error file's count, taken before a step (round 2).
+
+    Also the INFO and WARN records already in the window: the window holds 150 records and spans the step before,
+    so a log_not_regex would otherwise fail a step for output that the previous step's route produced.
+    """
+    lines = log_lines(mcp, name, 150)
+    records = {error_key(l) for l in lines if isinstance(l, dict) and (l.get("level") or "").upper() == "ERROR"}
+    reloads = {reload_key(l) for l in lines if isinstance(l, dict) and is_reload(l)}
+    before_msgs = {error_key(l) for l in lines
+                   if isinstance(l, dict) and (l.get("level") or "").upper() in ("INFO", "WARN")}
+    data, _ = jcall(mcp, "camel_get_errors", {"name": name})
+    count = len(data.get("errors", []) or []) if isinstance(data, dict) else 0
+    return records, count, reloads, before_msgs
+
+
+def probe(pr):
+    """One HTTP request of a step check: {"method", "url", "headers", "body", "expect_status", "body_regex"}; the
+    server may still be settling after the reload, so the request is retried a few times until the expected status."""
+    method = pr.get("method", "GET"); url = pr["url"]; want = int(pr.get("expect_status", 200))
+    out = {"url": url, "method": method, "ok": False, "status": None, "body": ""}
+    for _ in range(6):
+        try:
+            data = pr["body"].encode() if pr.get("body") is not None else None
+            req = urllib.request.Request(url, data=data, method=method, headers=pr.get("headers") or {})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                out["status"], out["body"] = r.status, r.read().decode(errors="replace")[:600]
+        except urllib.error.HTTPError as e:
+            out["status"], out["body"] = e.code, e.read().decode(errors="replace")[:600]
+        except Exception as e:
+            out["status"], out["body"] = None, str(e)[:200]
+        # the status alone is not enough: right after a reload the previous route may still answer 200 with its own
+        # body, and that is not the answer the step asks for -- retry until the body matches too
+        if out["status"] == want and body_matches(pr.get("body_regex"), out["body"]):
+            break
+        time.sleep(2)
+    out["ok"] = out["status"] == want and body_matches(pr.get("body_regex"), out["body"])
+    return out
+
+
+def body_matches(rx, body):
+    """The check is about what the route answers, not how it spaces it: a pretty printed JSON body is the same
+    answer as a compact one, so the regex is tried against the text and against the body re-serialized compactly."""
+    if not rx:
+        return True
+    if re.search(rx, body or "", re.S):
+        return True
+    try:
+        compact = json.dumps(json.loads(body), separators=(",", ":"), ensure_ascii=False)
+    except Exception:
+        return False
+    return re.search(rx, compact, re.S) is not None
+
+
 def score(step, project, cfg, mcp, name, before):
     chk = step["check"]
-    route = read(os.path.join(project, cfg["route_file"])); props = read(os.path.join(project, cfg["props_file"]))
+    route = read(os.path.join(project, cfg["route_file"])); props = read(os.path.join(project, cfg.get("props_file", "application.properties")))
     result = {"file_ok": True, "props_ok": True, "log_ok": True, "errors": 0}
     if chk.get("file_regex") and not re.search(chk["file_regex"], route):
         result["file_ok"] = False
@@ -109,32 +238,89 @@ def score(step, project, cfg, mcp, name, before):
         result["file_ok"] = False
     if chk.get("props_regex") and not re.search(chk["props_regex"], props):
         result["props_ok"] = False
+    # round 2: on macOS the JDK WatchService polls about every 10 s, so a dev-mode reload lands up to 10 s after the
+    # write; wait for a reload record newer than the step's snapshot (up to 25 s), then the example's own wait
+    seen_reloads = before.get("reload_records") or set()
+    reload_at = None
+    for _ in range(12):
+        fresh_reloads = [l for l in log_lines(mcp, name, 150)
+                         if isinstance(l, dict) and is_reload(l) and reload_key(l) not in seen_reloads]
+        if fresh_reloads:
+            # the reload this step caused: what the step forbids is only forbidden from here on, whatever the route
+            # logged while the model was still writing (the step before it may have been the one provoking it)
+            # the last of them: a model that wrote twice in one step is judged on the state it left behind
+            times = [t for t in (tod(l.get("time") or l.get("timestamp")) for l in fresh_reloads) if t is not None]
+            reload_at = max(times) if times else None
+            break
+        time.sleep(2)
+    # CAMEL-24886: probes are the README's curl: an HTTP request after the reload, its status and body checked
+    result["probes"] = [probe(pr) for pr in (chk.get("probes") or [])]
+    if any(not pr["ok"] for pr in result["probes"]):
+        result["log_ok"] = False
     time.sleep(cfg["wait_seconds"])
-    lines = log_lines(mcp, name, 40)
+    # (after the wait: a file the app writes on the reload, an outbox or an archive, exists only then)
+    # round 2: other files of the project (a Java bean, beans.yaml, a stylesheet, a dropped data file)
+    for fname, rx in (chk.get("files") or {}).items():
+        # by path, else by name anywhere in the project (a class the model put under src/main/java is the same class)
+        content = read(os.path.join(project, fname))
+        if not content:
+            for root, dirs, files in os.walk(project):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                if os.path.basename(fname) in files:
+                    content = read(os.path.join(root, os.path.basename(fname)))
+                    break
+        if not re.search(rx, content):
+            result["file_ok"] = False
+    lines = log_lines(mcp, name, 150)
     def lvl(l): return (l.get("level") or "").upper()
-    def msg(l): return l.get("message") or l.get("msg") or ""
-    recent = [l for l in lines if isinstance(l, dict) and lvl(l) == "INFO"]
+    # a multi-line message (a pretty-printed body) comes as one record with a detail block: match on both
+    def msg(l): return (l.get("message") or l.get("msg") or "") + ("\n" + l["detail"] if l.get("detail") else "")
+    recent = [l for l in lines if isinstance(l, dict) and lvl(l) in ("INFO", "WARN")]
     msgs = [msg(l) for l in recent]
-    matched = [m for m in msgs if re.search(chk["log_regex"], m)]
-    if len(matched) < chk.get("min_log", 1):
+    # round 2: log_regex may be a list (all must match), or absent (a step with nothing to see in the log)
+    regexes = chk.get("log_regex")
+    regexes = [] if regexes is None else (regexes if isinstance(regexes, list) else [regexes])
+    matched = []
+    for rx in regexes:
+        found = [m for m in msgs if re.search(rx, m, re.S)]
+        if len(found) < chk.get("min_log", 1):
+            result["log_ok"] = False
+        matched = found if not matched else matched
+    # only what this step produced: the window spans the step before, whose route may legitimately have logged
+    # what this step forbids (a circuit breaker step forbids ConnectException, which the step before it provokes)
+    seen_msgs = before.get("log_records") or set()
+
+    def after_reload(l):
+        if reload_at is None:
+            return True
+        t = tod(l.get("time") or l.get("timestamp"))
+        return t is None or t >= reload_at
+    fresh = [msg(l) for l in recent if error_key(l) not in seen_msgs and after_reload(l)]
+    if chk.get("log_not_regex") and any(re.search(chk["log_not_regex"], m, re.S) for m in fresh):
         result["log_ok"] = False
     if chk.get("interval_min") and len(matched) >= 2:
-        ts = [l.get("time") or l.get("timestamp") or "" for l in recent if re.search(chk["log_regex"], msg(l))][:2]
+        ts = [l.get("time") or l.get("timestamp") or "" for l in recent if re.search(regexes[0], msg(l), re.S)][:2]
         try:
-            def sec(t):
-                t = t.split("T")[-1].split(" ")[-1]; h, m, s = t.split(":")[:3]; return int(h) * 3600 + int(m) * 60 + float(s)
-            if abs(sec(ts[0]) - sec(ts[1])) < chk["interval_min"]:
+            if abs(tod(ts[0]) - tod(ts[1])) < chk["interval_min"]:
                 result["log_ok"] = False
         except Exception:
             pass
-    result["errors"] = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR")
+    # round 2: errors are counted per step (the log window and the error file keep an earlier step's stack traces)
+    seen = before.get("error_records") or set()
+    result["errors"] = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in seen)
     data, _ = jcall(mcp, "camel_get_errors", {"name": name})
     if isinstance(data, dict):
-        result["errors"] += len(data.get("errors", []) or [])
+        result["errors"] += max(0, len(data.get("errors", []) or []) - before.get("error_count", 0))
     diff = list(difflib.unified_diff(before["route"].splitlines(), route.splitlines(), lineterm="", n=0))
     diffp = list(difflib.unified_diff(before["props"].splitlines(), props.splitlines(), lineterm="", n=0))
     result["changed_lines"] = sum(1 for l in diff + diffp if (l.startswith("+") or l.startswith("-")) and not l.startswith(("+++", "---")))
-    result["ok"] = result["file_ok"] and result["props_ok"] and result["log_ok"] and result["errors"] == 0
+    # round 2: a step may expect errors (the supplier throwing nine times) or tolerate them
+    errors_fine = result["errors"] == 0 or bool(chk.get("errors_ok"))
+    if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
+        errors_fine = False
+    # ok_final: the end state is right (files and log), whatever happened on the way; ok also needs no errors
+    result["ok_final"] = result["file_ok"] and result["props_ok"] and result["log_ok"]
+    result["ok"] = result["ok_final"] and errors_fine
     result["log_sample"] = msgs[:5]
     return result, route, props
 
@@ -150,22 +336,57 @@ def main():
     tools = to_ollama_tools(all_tools, SHARED + EXTRA)
     print(f"tools: {[t['function']['name'] for t in tools]}", file=log, flush=True)
 
-    # start the integration once, in dev mode, through the MCP server
-    data, raw = jcall(mcp, "camel_run", {"directory": project})
-    print(f"camel_run -> {raw[:300]}", file=log, flush=True)
-    name = (data or {}).get("name") or os.path.basename(project)
-    time.sleep(6)
+    proc = None
+    peer = None
+    if cfg.get("peer"):
+        # CAMEL-24886: a second app the example talks to (the stock API behind a client), from its own directory
+        pd = os.path.join(HERE, cfg["peer"]["project"]); pname = cfg["peer"]["name"]
+        peer_out = open(os.path.join(OUT, "peer-run.out"), "w")
+        peer = subprocess.Popen(["camel", "run", "--source-dir=" + pd, "--name=" + pname, "--logging-color=false"],
+                                stdout=peer_out, stderr=subprocess.STDOUT, cwd=pd)
+        for _ in range(60):
+            time.sleep(1)
+            if "Routes startup" in read(os.path.join(OUT, "peer-run.out")) or peer.poll() is not None:
+                break
+        time.sleep(2)
+        print(f"peer camel run --source-dir -> pid {peer.pid} name {pname}", file=log, flush=True)
+    if cfg.get("source_dir"):
+        # round 2: camel run --source-dir watches the whole directory, so a bean file or a Java class the model adds
+        # later is part of the app (the MCP camel_run starts with the files of the moment, and a restart replays
+        # them); the MCP tools find the integration by name
+        name = os.path.basename(project)
+        run_out = open(os.path.join(OUT, "camel-run.out"), "w")
+        proc = subprocess.Popen(["camel", "run", "--source-dir=" + project, "--dev", "--name=" + name, "--logging-color=false"],
+                                stdout=run_out, stderr=subprocess.STDOUT, cwd=project)
+        for _ in range(60):
+            time.sleep(1)
+            if "Routes startup" in read(os.path.join(OUT, "camel-run.out")) or proc.poll() is not None:
+                break
+        time.sleep(3)
+        print(f"camel run --source-dir -> pid {proc.pid} name {name}", file=log, flush=True)
+    else:
+        # start the integration once, in dev mode, through the MCP server
+        data, raw = jcall(mcp, "camel_run", {"directory": project})
+        print(f"camel_run -> {raw[:300]}", file=log, flush=True)
+        name = (data or {}).get("name") or os.path.basename(project)
+        time.sleep(6)
 
     messages = [{"role": "system", "content": SYSTEM.replace("{directory}", project).replace("{name}", name)}]
     results = []
     try:
         for step in cfg["steps"]:
             sid = step["id"]
-            before = {"route": read(os.path.join(project, cfg["route_file"])), "props": read(os.path.join(project, cfg["props_file"]))}
+            before = {"route": read(os.path.join(project, cfg["route_file"])), "props": read(os.path.join(project, cfg.get("props_file", "application.properties")))}
+            before["error_records"], before["error_count"], before["reload_records"], before["log_records"] \
+                = error_snapshot(mcp, name)
             trace = open(os.path.join(OUT, f"step{sid}.trace.jsonl"), "w")
             messages.append({"role": "user", "content": step["request"]})
             calls = 0; tokens = 0; t0 = time.time(); writes = 0; refused = 0; answer = ""
-            while True:
+            if REFERENCE:
+                # the reference files stand in for the model's edits; the checks then score the steps file itself
+                writes += apply_reference(project, cfg, step.get("reference") or {}, mcp, name, before)
+                answer = "(reference)"
+            while not REFERENCE:
                 try:
                     data, secs = ollama_chat(messages, tools)
                 except Exception as e:
@@ -184,17 +405,19 @@ def main():
                             except Exception:
                                 args = {}
                         args = dict(args)
-                        if fn["name"] in ("camel_get_files", "camel_write_file", "camel_validate_source", "camel_run") and "directory" not in args:
+                        if fn["name"] in ("camel_get_files", "camel_write_file", "camel_edit_file", "camel_validate_source",
+                                          "camel_run") and "directory" not in args:
                             args["directory"] = project
                         if fn["name"] in ("camel_get_log", "camel_get_errors", "camel_control", "camel_eval_expression") and "name" not in args:
                             args["name"] = name
-                        if fn["name"] == "camel_write_file":
+                        if fn["name"] in ("camel_write_file", "camel_edit_file"):
                             writes += 1
                         try:
                             out = mcp.call(fn["name"], args)
                         except Exception as e:
                             out = "ERROR: " + str(e)
-                        if fn["name"] == "camel_write_file" and ('"invalid"' in out or out.startswith("ERROR")):
+                        if fn["name"] in ("camel_write_file", "camel_edit_file") and ('"invalid"' in out
+                                or '"not-found"' in out or '"ambiguous"' in out or out.startswith("ERROR")):
                             refused += 1
                         out = out[:TOOL_RESULT_CAP]
                         trace.write(json.dumps({"tool": fn["name"], "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800]}) + "\n"); trace.flush()
@@ -202,26 +425,61 @@ def main():
                     continue
                 answer = msg.get("content") or ""
                 break
+            if cfg.get("restart_each_step") or step.get("restart"):
+                # round 2: the README's "run after each step" where a reload is not enough: a new or changed Java
+                # class is not compiled on a reload, so the step says restart and the harness restarts (the request
+                # says so too, a model that restarts itself is fine)
+                data, raw = jcall(mcp, "camel_control", {"name": name, "action": "restart"})
+                print(f"step{sid}: camel_control restart -> {raw[:200]}", file=log, flush=True)
+                if isinstance(data, dict) and data.get("name"):
+                    name = data["name"]
+                time.sleep(8)
             res, route_after, props_after = score(step, project, cfg, mcp, name, before)
             res.update({"step": sid, "request": step["request"], "tool_calls": calls, "writes": writes, "refused_writes": refused,
                         "seconds": round(time.time() - t0, 1), "tokens": tokens, "answer": answer[:400]})
             results.append(res)
             with open(os.path.join(OUT, f"step{sid}.after.yaml"), "w") as f:
                 f.write(route_after)
+            probes = "".join("P" if pr["ok"] else "F" for pr in res.get("probes") or [])
             print(f"step{sid}: ok={res['ok']} file={res['file_ok']} props={res['props_ok']} log={res['log_ok']} errors={res['errors']} "
-                  f"changed_lines={res['changed_lines']} calls={calls} writes={writes} refused={refused} secs={res['seconds']} tokens={tokens}", file=log, flush=True)
+                  + (f"probes={probes} " if probes else "")
+                  + f"changed_lines={res['changed_lines']} calls={calls} writes={writes} refused={refused} secs={res['seconds']} tokens={tokens}", file=log, flush=True)
             trace.close()
             if step.get("reference"):
-                for fname, content in step["reference"].items():
-                    with open(os.path.join(project, fname), "w") as f:
-                        f.write(content)
-                time.sleep(4)
+                for fname in step["reference"]:
+                    # a same-named file elsewhere (the model's copy of a Java class under src/main/java) would be a
+                    # second class of the same name after the fix: remove it
+                    for root, dirs, files in os.walk(project):
+                        dirs[:] = [d for d in dirs if not d.startswith(".")]
+                        other = os.path.join(root, os.path.basename(fname))
+                        if os.path.basename(fname) in files and os.path.abspath(other) != os.path.abspath(os.path.join(project, fname)):
+                            os.remove(other)
+                apply_reference(project, cfg, step["reference"], mcp, name)
+                # the checkpoint write reloads the app too (on macOS up to 10 s later): wait for that reload and let
+                # its consumers settle, so the next step's error and log snapshot is taken in a quiet state
+                seen = error_snapshot(mcp, name)[2]
+                for _ in range(12):
+                    time.sleep(2)
+                    if any(reload_key(l) not in seen for l in log_lines(mcp, name, 150) if isinstance(l, dict) and is_reload(l)):
+                        break
+                time.sleep(6)
                 if not res["ok"]:
                     messages.append({"role": "user", "content": "I fixed that step myself; the files now contain the correct version. Continue with the next request."})
             json.dump(results, open(os.path.join(OUT, "results.json"), "w"), indent=1)
     finally:
         data, raw = jcall(mcp, "camel_control", {"name": name, "action": "stop"})
         print(f"camel_control stop -> {raw[:200]}", file=log, flush=True)
+        if peer is not None:
+            subprocess.run(["camel", "stop", cfg["peer"]["name"]], capture_output=True)
+            try:
+                peer.wait(timeout=20)
+            except Exception:
+                peer.kill()
+        if proc is not None:
+            try:
+                proc.wait(timeout=20)
+            except Exception:
+                proc.kill()
     print(f"DONE passed={sum(1 for r in results if r['ok'])}/{len(results)}", file=log, flush=True)
     log.close()
 
