@@ -129,46 +129,53 @@ def error_key(l):
     return (l.get("time") or l.get("timestamp") or "") + "|" + (l.get("message") or l.get("msg") or "")[:120]
 
 
-def await_reload(mcp, name, seen, tries=12):
-    """Wait (up to tries*2 s) for a reload record newer than seen; macOS polls the WatchService about every 10 s."""
-    for _ in range(tries):
-        time.sleep(2)
-        if any(reload_key(l) not in seen for l in log_lines(mcp, name, 150) if isinstance(l, dict) and is_reload(l)):
-            return True
-    return False
+INFRA_TIMEOUT = int(os.environ.get("BENCH_INFRA_TIMEOUT", "300"))    # seconds to wait for `camel infra` services
+
+
+def infra_start(services):
+    """Start the services the example needs with `camel infra run <svc> --background` and wait until each answers.
+
+    Stopped first, so every pass starts against an empty database. A service kept running between passes would carry
+    its rows over, and then a step that changes a row passes on what the pass before it left rather than on the work
+    of the model: step 3 sets C-207 to NL, and the next pass would find it already NL. Postgres takes about 80 s to
+    come up, which is the price of that. The runner stops them when the whole run is over.
+    """
+    for svc in services:
+        subprocess.run(["camel", "infra", "stop", svc], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for svc in services:
+        subprocess.run(["camel", "infra", "run", svc, "--background"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    data, deadline = {}, time.time() + INFRA_TIMEOUT
+    for svc in services:
+        while time.time() < deadline:
+            out = subprocess.run(["camel", "infra", "get", svc, "--json"], capture_output=True, text=True).stdout
+            m = re.search(r"\{.*\}", out, re.S)
+            if m:
+                try:
+                    data[svc] = json.loads(m.group(0))
+                    break
+                except json.JSONDecodeError:
+                    pass
+            time.sleep(5)
+        else:
+            data[svc] = {"error": f"{svc} did not come up within {INFRA_TIMEOUT}s"}
+    return data
 
 
 def apply_reference(project, cfg, reference, mcp, name, before=None):
-    """Write a step's reference files the way a person does: the properties (and any other file) first, then the route.
+    """Write a step's reference files, all of them, as one save.
 
-    Not one batch: dev mode reloads the routes before it reloads the properties, so a route written in the same poll
-    as the property it uses fails to start ("Property with key [shop.currency] not found") and the later properties
-    reload does not retry it. Writing the other files first, and letting that reload land, is what the model's own
-    pace does for free. The step's reload baseline is re-taken just before the route is written, so the caller waits
-    for the route's reload and not for the one the first write already triggered.
+    They used to be written in two goes, the properties first and the route once that reload had landed, because dev
+    mode reloaded the routes of a change before its properties, so a route written in the same poll as the property it
+    uses failed to start. CAMEL-25041 reloads one save as one batch with the properties applied first, so one go is
+    right again -- and better: two writes two seconds apart reloaded the app twice, and an HTTP call in flight across
+    the second reload was answered 404 by a rest route that was being rebuilt (ref12, connect-http-client step 1).
     """
-    route_file = cfg["route_file"]
-    others = [f for f in reference if f != route_file]
-
-    def write(fname):
+    for fname in reference:
         os.makedirs(os.path.dirname(os.path.join(project, fname)) or project, exist_ok=True)
         with open(os.path.join(project, fname), "w") as f:
             f.write(reference[fname])
-
-    def reloads():
-        return {reload_key(l) for l in log_lines(mcp, name, 150) if isinstance(l, dict) and is_reload(l)}
-
-    if others and route_file in reference:
-        seen = reloads()
-        for fname in others:
-            write(fname)
-        await_reload(mcp, name, seen)
-        if before is not None:
-            before["reload_records"] = reloads()
-        write(route_file)
-    else:
-        for fname in reference:
-            write(fname)
     return len(reference)
 
 
@@ -338,6 +345,18 @@ def main():
 
     proc = None
     peer = None
+    if cfg.get("infra"):
+        # the services the example connects to, as its README starts them: the sql example's postgres. Left running
+        # when the pass ends, so the next pass of the same example does not pay the startup again (about 80 s); the
+        # runner stops them when the whole run is over
+        t0 = time.time()
+        data = infra_start(cfg["infra"])
+        print(f"camel infra run {' '.join(cfg['infra'])} -> {json.dumps(data)[:300]} ({time.time() - t0:.0f}s)",
+              file=log, flush=True)
+        for svc, d in data.items():
+            if isinstance(d, dict) and d.get("error"):
+                print(f"ABORT: {d['error']}", file=log, flush=True)
+                raise SystemExit(f"{svc} did not come up")
     if cfg.get("peer"):
         # CAMEL-24886: a second app the example talks to (the stock API behind a client), from its own directory
         pd = os.path.join(HERE, cfg["peer"]["project"]); pname = cfg["peer"]["name"]

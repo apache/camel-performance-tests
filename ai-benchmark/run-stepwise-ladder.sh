@@ -22,6 +22,14 @@ for i in $(seq 1 "$K"); do
     # safety net: the harness stops its integration, but an interrupted run leaves one behind
     camel stop "$name" > /dev/null 2>&1 || true
   done
+  # the services an example needed stay up across its passes; stop them once the run is over
+  for svc in $(python3 -c "
+import glob, json
+out = set()
+for f in glob.glob('steps-ladder/*.json'):
+    try: out.update(json.load(open(f)).get('infra') or [])
+    except Exception: pass
+print(' '.join(sorted(out)))"); do camel infra stop "$svc" > /dev/null 2>&1 || true; done
   echo "[$T] DONE $(date +%T)" | tee -a "stepwise-$T.log"
 done
 python3 summarize_stepwise.py "$TAG" "$K"

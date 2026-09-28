@@ -335,18 +335,23 @@ EXAMPLES.append({
          "reference": {CBR: cbr_s4}},
     ]})
 
-# ---------------------------------------------------------------- connect-service/sql (on H2 instead of Postgres: no infra, same routes; CAMEL-24834 tool-group experiment)
+# ---------------------------------------------------------------- connect-service/sql (Postgres as the example ships it, started with camel infra)
 SQL = "sql.camel.yaml"
-SQL_PROPS = ("spring.datasource.url=jdbc:h2:mem:shop;DB_CLOSE_DELAY=-1\nspring.datasource.username=sa\nspring.datasource.password=\n"
-             "spring.datasource.driverClassName=org.h2.Driver\ncamel.jbang.dependencies=com.h2database:h2:2.3.232\n")
+# the example's own datasource: what `camel infra run postgres` prints
+SQL_PROPS = ("spring.datasource.url=jdbc:postgresql://localhost:5432/test\nspring.datasource.username=test\n"
+             "spring.datasource.password=test\nspring.datasource.driverClassName=org.postgresql.Driver\n")
 TIMER_SETUP = "      uri: timer\n      parameters:\n        timerName: setup\n        repeatCount: 1\n        delay: 0\n"
 TIMER_REPORT = "      uri: timer\n      parameters:\n        timerName: report\n        delay: 5000\n        period: 10000\n"
 FILE_ORDERS_SQL = FILE_ORDERS + "        initialDelay: 2000\n"
 def sql_to(query, noop=False):
     return ("        - to:\n            uri: sql\n            parameters:\n              query: \"" + query + "\"\n" + ("              noop: true\n" if noop else ""))
+# exactly as the example has it: no reset in the route. A reset here runs on every reload too, and then an UPDATE
+# that fires before the file route's inserts is wiped -- which cost step 3 six of ten passes. The database is made
+# fresh between passes instead, by recycling the infra service.
 CREATE = sql_to("CREATE TABLE IF NOT EXISTS customers (id varchar(10) PRIMARY KEY, country varchar(2), orders integer)")
-MERGE = sql_to("MERGE INTO customers USING (VALUES (:#${body[customer]}, :#${body[country]})) AS s(id, country) ON customers.id = s.id "
-               "WHEN MATCHED THEN UPDATE SET orders = customers.orders + 1 WHEN NOT MATCHED THEN INSERT (id, country, orders) VALUES (s.id, s.country, 1)", noop=True)
+# the example's own insert, verbatim
+MERGE = sql_to("INSERT INTO customers (id, country, orders) VALUES (:#${body[customer]}, :#${body[country]}, 1) "
+               "ON CONFLICT (id) DO UPDATE SET orders = customers.orders + 1", noop=True)
 REGISTERED = log("Customer ${body[customer]} from ${body[country]} registered with order ${body[orderId]}")
 REPORT = (sql_to("SELECT id, country, orders FROM customers ORDER BY id") + log("${body.size()} customer(s) in the table")
           + "        - split:\n            expression:\n              simple:\n                expression: \"${body}\"\n            steps:\n"
@@ -358,11 +363,11 @@ FIX_COUNTRY = route("fix-country", "      uri: timer\n      parameters:\n       
                     sql_to("UPDATE customers SET country = 'NL' WHERE id = 'C-207'") + log("Fixed country of C-207"))
 EXAMPLES.append({
     "name": "connect-service-sql", "route_file": SQL, "props_file": "application.properties", "wait_seconds": 16,
-    "seed": "connect-service-sql",
+    "seed": "connect-service-sql", "infra": ["postgres"],
     "initial": {SQL: sql_s1, "application.properties": SQL_PROPS},
     "steps": [
-        {"request": "Add a route register-customers that reads the JSON files in the orders directory (file endpoint with noop true, sortBy file:name and initialDelay 2000), unmarshals each with Jackson, and registers the customer in the customers table with the sql component using named parameters from the body: a new customer gets a row (id from body[customer], country from body[country], orders 1), a customer that already has a row gets orders + 1; the orders directory is read again every time the routes reload, so this must not fail on a duplicate key. Keep the order as the body (noop true) and log \"Customer ${body[customer]} from ${body[country]} registered with order ${body[orderId]}\". The statement must run on the database this app is configured with.",
-         "check": {"file_regex": "MERGE|MATCHED|CONFLICT|DUPLICATE", "log_regex": ["Customer C-482 from DK registered with order ORD-1001", "Customer C-134 from US registered with order ORD-1003"], "log_not_regex": "Syntax error|Unique index or primary key violation"},
+        {"request": "Add a route register-customers that reads the JSON files in the orders directory (file endpoint with noop true, sortBy file:name and initialDelay 2000), unmarshals each with Jackson, and registers the customer in the customers table with the sql component using named parameters from the body: a new customer gets a row (id from body[customer], country from body[country], orders 1), a customer that already has a row gets orders + 1; the orders directory is read again every time the routes reload, so this must not fail on a duplicate key. Keep the order as the body (noop true) and log \"Customer ${body[customer]} from ${body[country]} registered with order ${body[orderId]}\".",
+         "check": {"file_regex": "CONFLICT|MERGE", "log_regex": ["Customer C-482 from DK registered with order ORD-1001", "Customer C-134 from US registered with order ORD-1003"], "log_not_regex": "Syntax error|duplicate key value"},
          "reference": {SQL: sql_s3}},
         {"request": "Add a route customer-report from a timer (delay 5000, period 10000) that selects id, country and orders from customers ordered by id, logs \"${body.size()} customer(s) in the table\", and splits the list to log \"  ${body[id]} (${body[country]}): ${body[orders]} order(s)\" per row.",
          "check": {"file_regex": "split", "log_regex": ["3 customer\\(s\\) in the table", "C-482 \\(DK\\): \\d+ order\\(s\\)"]},
@@ -802,6 +807,9 @@ def main():
         cfg = {"project": "stepwise-ladder/" + ex["name"], "route_file": ex["route_file"], "props_file": ex["props_file"],
                "wait_seconds": ex["wait_seconds"], "source_dir": True, "seed": ex.get("seed"), "exclude_seeds": ex.get("exclude_seeds", []),
                "initial": ex["initial"], "steps": steps}
+        if ex.get("infra"):
+            # services the example needs, started with `camel infra run` before the app (the sql example's postgres)
+            cfg["infra"] = ex["infra"]
         if ex.get("peer"):
             cfg["peer"] = {"project": ex["peer"]["project"], "name": ex["peer"]["name"]}
             pd = os.path.join(HERE, ex["peer"]["project"])
