@@ -673,7 +673,7 @@ EXAMPLES.append({
          "check": {"file_regex": "toD", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock", "ORD-1003: CAMEL-CAP x 1, 0 in stock"]},
          "reference": {HC: hc_s3}},
         {"request": "Decide per line: add throwExceptionOnFailure=false to the HTTP call so a 404 does not throw, then a choice: when the header CamelHttpResponseCode is not 200 log \"${exchangeProperty.orderId}: ${body[error]} (HTTP ${header.CamelHttpResponseCode})\", when ${body[qty]} >= ${exchangeProperty.needed} log \"${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, ${body[qty]} in stock, ok\", otherwise log \"${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, only ${body[qty]} in stock, back-order\".",
-         "check": {"file_regex": "throwExceptionOnFailure=false", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock, ok", "ORD-1003: CAMEL-CAP x 1, only 0 in stock, back-order"]},
+         "check": {"file_regex": "throwExceptionOnFailure[=:] *false", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock, ok", "ORD-1003: CAMEL-CAP x 1, only 0 in stock, back-order"]},
          "reference": {HC: hc_s4}},
     ]})
 

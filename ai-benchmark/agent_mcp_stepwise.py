@@ -24,6 +24,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TAG = os.environ.get("BENCH_TAG", "mcp-" + MODEL.replace(":", "_").replace("/", "_"))
 OUT = os.path.join(HERE, "stepwise", TAG)
 MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "20"))
+# how many log records a step is scored on. A step that provokes failures on purpose (errors_ok) fills the window
+# with its own expected errors, and the line the check looks for scrolls out of it while sitting in the run log
+LOG_WINDOW = int(os.environ.get("BENCH_LOG_WINDOW", "400"))
 # round 2: BENCH_REFERENCE=1 skips the model and applies each step's reference files instead, to check the steps file itself
 REFERENCE = os.environ.get("BENCH_REFERENCE") == "1"
 TOOL_RESULT_CAP = 6000
@@ -185,7 +188,7 @@ def error_snapshot(mcp, name):
     Also the INFO and WARN records already in the window: the window holds 150 records and spans the step before,
     so a log_not_regex would otherwise fail a step for output that the previous step's route produced.
     """
-    lines = log_lines(mcp, name, 150)
+    lines = log_lines(mcp, name, LOG_WINDOW)
     records = {error_key(l) for l in lines if isinstance(l, dict) and (l.get("level") or "").upper() == "ERROR"}
     reloads = {reload_key(l) for l in lines if isinstance(l, dict) and is_reload(l)}
     before_msgs = {error_key(l) for l in lines
@@ -250,7 +253,7 @@ def score(step, project, cfg, mcp, name, before):
     seen_reloads = before.get("reload_records") or set()
     reload_at = None
     for _ in range(12):
-        fresh_reloads = [l for l in log_lines(mcp, name, 150)
+        fresh_reloads = [l for l in log_lines(mcp, name, LOG_WINDOW)
                          if isinstance(l, dict) and is_reload(l) and reload_key(l) not in seen_reloads]
         if fresh_reloads:
             # the reload this step caused: what the step forbids is only forbidden from here on, whatever the route
@@ -278,7 +281,7 @@ def score(step, project, cfg, mcp, name, before):
                     break
         if not re.search(rx, content):
             result["file_ok"] = False
-    lines = log_lines(mcp, name, 150)
+    lines = log_lines(mcp, name, LOG_WINDOW)
     def lvl(l): return (l.get("level") or "").upper()
     # a multi-line message (a pretty-printed body) comes as one record with a detail block: match on both
     def msg(l): return (l.get("message") or l.get("msg") or "") + ("\n" + l["detail"] if l.get("detail") else "")
@@ -317,7 +320,10 @@ def score(step, project, cfg, mcp, name, before):
     result["errors"] = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in seen)
     data, _ = jcall(mcp, "camel_get_errors", {"name": name})
     if isinstance(data, dict):
-        result["errors"] += max(0, len(data.get("errors", []) or []) - before.get("error_count", 0))
+        errs = data.get("errors", []) or []
+        result["errors"] += max(0, len(errs) - before.get("error_count", 0))
+        # what they were, not just how many: a step that fails on errors alone cannot be judged from a count
+        result["error_detail"] = [str(e)[:300] for e in errs[before.get("error_count", 0):]][:5]
     diff = list(difflib.unified_diff(before["route"].splitlines(), route.splitlines(), lineterm="", n=0))
     diffp = list(difflib.unified_diff(before["props"].splitlines(), props.splitlines(), lineterm="", n=0))
     result["changed_lines"] = sum(1 for l in diff + diffp if (l.startswith("+") or l.startswith("-")) and not l.startswith(("+++", "---")))
@@ -479,7 +485,7 @@ def main():
                 seen = error_snapshot(mcp, name)[2]
                 for _ in range(12):
                     time.sleep(2)
-                    if any(reload_key(l) not in seen for l in log_lines(mcp, name, 150) if isinstance(l, dict) and is_reload(l)):
+                    if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
                         break
                 time.sleep(6)
                 if not res["ok"]:
