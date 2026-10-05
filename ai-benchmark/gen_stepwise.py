@@ -8,7 +8,7 @@ steps 2..N are the requests. Checks: log_regex (a regex or a list, all must matc
 file_regex (the route file), props_regex, files {name: regex}, errors_ok, min_errors.
 
 Usage: gen_stepwise.py            writes every steps file and project
-       gen_stepwise.py <name>     rewrites one project directory from its steps file (the runner does this per run)
+       gen_stepwise.py <name>     rewrites one example's steps file and resets its project (the runner does this per pass)
 """
 import datetime, json, os, shutil, sys
 
@@ -157,7 +157,7 @@ EXAMPLES.append({
     "seed": "transform-json-transform",
     "initial": {JT: route("json-transform", TIMER1, BODY_FILE + log("Order: ${body}")), "application.properties": ""},
     "steps": [
-        {"request": "Read the order id into a header orderId with a jsonpath expression $.orderId and log \"Order <id>: <body>\".",
+        {"request": "Read the order id into a header orderId with a jsonpath expression $.orderId and log the message \"Order ${header.orderId}: ${body}\" (it reads Order ORD-1001: followed by the order JSON).",
          "check": {"file_regex": "jsonpath", "log_regex": "Order ORD-1001: \\{"},
          "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + log("Order ${header.orderId}: ${body}"))}},
         {"request": "Add the number of lines as a header itemCount with jsonpath $.lines.length() and log \"Order <id> with <count> lines: <body>\".",
@@ -260,7 +260,7 @@ EXAMPLES.append({
     "seed": "route-order-lines",
     "initial": {OL: route("order-lines", FILE_ORDERS, UNMARSHAL + log("Order ${body[orderId]} with ${body[lines].size()} line(s)")), "application.properties": ""},
     "steps": [
-        {"request": "Add a split over the order's lines (${body[lines]}) and inside it log \"  pick <qty> x <sku>\" for each line.",
+        {"request": "Add a split over the order's lines (${body[lines]}) and inside it log the message \"  pick ${body[qty]} x ${body[sku]}\" for each line (it reads   pick 2 x CAMEL-TSHIRT).",
          "check": {"file_regex": "split", "log_regex": "pick 2 x CAMEL-TSHIRT"},
          "reference": {OL: ol_s2}},
         {"request": "Keep the order id in a header orderId before the split and use it in the pick line: \"  pick <qty> x <sku> for <orderId>\".",
@@ -603,15 +603,14 @@ def set_header(name, kind, expr, ind="        "):
             + ind + "        expression: " + expr + "\n")
 CT_JSON = set_header("Content-Type", "constant", "application/json")
 DIRECT = lambda n: "      uri: direct\n      parameters:\n        name: " + n + "\n"
-JSONPATH_SKU = ("        - setBody:\n            expression:\n              jsonpath:\n                expression: \"$[?(@.sku == '${header.sku}')]\"\n"
-                "                resultType: java.util.List\n")
-NOT_FOUND = ("        - choice:\n            when:\n              - expression:\n                  simple:\n                    expression: \"${body.size()} == 0\"\n"
+GROOVY_SKU = ("        - unmarshal:\n            json:\n              library: Jackson\n"
+              "        - setBody:\n            expression:\n              groovy:\n                expression: \"body.find { it.sku == headers.sku }\"\n")
+NOT_FOUND = ("        - choice:\n            when:\n              - expression:\n                  simple:\n                    expression: \"${body} == null\"\n"
              "                steps:\n" + set_header("CamelHttpResponseCode", "constant", "\"404\"", "                  ")
              + "                  - setBody:\n                      expression:\n                        simple:\n                          expression: '{\"error\": \"unknown sku ${header.sku}\"}'\n"
-             "            otherwise:\n              steps:\n                - setBody:\n                    expression:\n                      simple:\n                        expression: \"${body[0]}\"\n"
+             "            otherwise:\n              steps:\n"
              "                - marshal:\n                    json:\n                      library: Jackson\n")
-FIRST_ITEM = ("        - setBody:\n            expression:\n              simple:\n                expression: \"${body[0]}\"\n"
-              "        - marshal:\n            json:\n              library: Jackson\n")
+FIRST_ITEM = ("        - marshal:\n            json:\n              library: Jackson\n")
 
 # ---------------------------------------------------------------- connect/stock-api (a server: the checks are the README's curl)
 SA = "stock-api.camel.yaml"
@@ -620,8 +619,8 @@ REST_BOTH = "- rest:\n    path: /stock\n    get:\n      - to:\n          uri: di
 ALL_STOCK = route("all-stock", DIRECT("all-stock"), const("resource:file:stock.json") + CT_JSON)
 sa_s1 = REST_ALL + "\n" + ALL_STOCK
 sa_s2 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku"), log("Stock asked for ${header.sku}") + const("resource:file:stock.json") + CT_JSON)
-sa_s3 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku"), log("Stock asked for ${header.sku}") + const("resource:file:stock.json") + JSONPATH_SKU + FIRST_ITEM + CT_JSON)
-sa_s4 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku"), log("Stock asked for ${header.sku}") + const("resource:file:stock.json") + JSONPATH_SKU + NOT_FOUND + CT_JSON)
+sa_s3 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku"), log("Stock asked for ${header.sku}") + const("resource:file:stock.json") + GROOVY_SKU + FIRST_ITEM + CT_JSON)
+sa_s4 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku"), log("Stock asked for ${header.sku}") + const("resource:file:stock.json") + GROOVY_SKU + NOT_FOUND + CT_JSON)
 GET = lambda path, status=200, rx=None: {"method": "GET", "url": "http://localhost:8080" + path, "expect_status": status, **({"body_regex": rx} if rx else {})}
 EXAMPLES.append({
     "name": "connect-stock-api", "route_file": SA, "props_file": "application.properties", "wait_seconds": 4,
@@ -631,10 +630,10 @@ EXAMPLES.append({
         {"request": "Add a second operation to the rest: GET /stock/{sku}, routed to direct:one-sku, and a route one-sku that logs \"Stock asked for ${header.sku}\" (the path parameter arrives as a header) and for now answers with the whole stock file like all-stock does.",
          "check": {"file_regex": "\\{sku\\}", "log_regex": "Stock asked for CAMEL-MUG", "probes": [GET("/stock/CAMEL-MUG", 200, "CAMEL-MUG")]},
          "reference": {SA: sa_s2}},
-        {"request": "In one-sku, pick the SKU out of the stock file with a jsonpath expression $[?(@.sku == '${header.sku}')] (resultType java.util.List), answer with the first element marshalled to JSON with Jackson, Content-Type application/json.",
-         "check": {"file_regex": "jsonpath", "probes": [GET("/stock/CAMEL-MUG", 200, "\"sku\":\"CAMEL-MUG\",\"qty\":42")]},
+        {"request": "In one-sku, keep loading the stock file into the body as now, then unmarshal the body with Jackson and pick the SKU with the Groovy expression body.find { it.sku == headers.sku } (the item as a map, or null), answer with the item marshalled to JSON with Jackson, Content-Type application/json.",
+         "check": {"file_regex": "groovy", "probes": [GET("/stock/CAMEL-MUG", 200, "\"sku\":\"CAMEL-MUG\",\"qty\":42")]},
          "reference": {SA: sa_s3}},
-        {"request": "When the SKU is unknown (the jsonpath list is empty) answer with HTTP status 404 (the header CamelHttpResponseCode) and the body {\"error\": \"unknown sku ${header.sku}\"}; a known SKU still answers as before.",
+        {"request": "When the SKU is unknown (the Groovy expression gives null) answer with HTTP status 404 (the header CamelHttpResponseCode) and the body {\"error\": \"unknown sku ${header.sku}\"}; a known SKU still answers as before.",
          "check": {"file_regex": "404", "probes": [GET("/stock/CAMEL-SOCKS", 404, "unknown sku CAMEL-SOCKS"), GET("/stock/CAMEL-MUG", 200, "\"qty\":42")]},
          "reference": {SA: sa_s4}},
     ]})
@@ -642,7 +641,7 @@ EXAMPLES.append({
 # ---------------------------------------------------------------- connect/http-client (the stock service is in the same app)
 HC = "http-client.camel.yaml"
 REST_ONE = "- rest:\n    path: /stock\n    get:\n      - path: \"/{sku}\"\n        to:\n          uri: direct:one-sku\n"
-STOCK_SERVICE = route("stock-service", DIRECT("one-sku"), const("resource:file:stock.json") + JSONPATH_SKU + NOT_FOUND + CT_JSON)
+STOCK_SERVICE = route("stock-service", DIRECT("one-sku"), const("resource:file:stock.json") + GROOVY_SKU + NOT_FOUND + CT_JSON)
 SERVER = REST_ONE + "\n" + STOCK_SERVICE + "\n"
 def set_prop(name, expr, ind="        "):
     return ind + "- setProperty:\n" + ind + "    name: " + name + "\n" + ind + "    expression:\n" + ind + "      simple:\n" + ind + "        expression: \"" + expr + "\"\n"
@@ -691,10 +690,7 @@ CONTRACT_V3 = contract(["/stock", "/stock/{sku}", "/stock/{sku}/reserve"])
 REST_OPENAPI = "- restConfiguration:\n    apiContextPath: openapi\n\n- rest:\n    openApi:\n      specification: stock-api.json\n\n"
 REST_OPENAPI_VALIDATED = "- restConfiguration:\n    clientRequestValidation: true\n    apiContextPath: openapi\n\n- rest:\n    openApi:\n      specification: stock-api.json\n\n"
 LIST_STOCK = route("listStock", DIRECT("listStock"), const("resource:file:stock.json"))
-LOOKUP = route("lookup", DIRECT("lookup"), const("resource:file:stock.json") + JSONPATH_SKU
-                + "        - choice:\n            when:\n              - expression:\n                  simple:\n                    expression: \"${body.size()} == 0\"\n"
-                  "                steps:\n                  - setBody:\n                      expression:\n                        simple:\n                          expression: \"${null}\"\n"
-                  "            otherwise:\n              steps:\n                - setBody:\n                    expression:\n                      simple:\n                        expression: \"${body[0]}\"\n")
+LOOKUP = route("lookup", DIRECT("lookup"), const("resource:file:stock.json") + GROOVY_SKU)
 NULL_404 = ("        - choice:\n            when:\n              - expression:\n                  simple:\n                    expression: \"${body} == null\"\n"
             "                steps:\n" + set_header("CamelHttpResponseCode", "constant", "\"404\"", "                  ")
             + "                  - setBody:\n                      expression:\n                        simple:\n                          expression: '{\"error\": \"unknown sku ${header.sku}\"}'\n"
@@ -731,7 +727,7 @@ EXAMPLES.append({
     "seed": "contracts-openapi-server",
     "initial": {OS: os_s1, "stock-api.json": CONTRACT_V1, "application.properties": PORT_PROPS},
     "steps": [
-        {"request": "Add the operation getStock to the contract stock-api.json: GET /stock/{sku} with the path parameter sku, a 200 answering a StockItem and a 404 answering an Error. Then the route getStock (rest-openapi routes each operation to direct:<operationId>): it calls a helper route lookup that reads stock.json, picks the SKU with jsonpath $[?(@.sku == '${header.sku}')] (resultType java.util.List) and leaves the item as the body or null when the list is empty; getStock answers the item marshalled to JSON, or a 404 (header CamelHttpResponseCode) with {\"error\": \"unknown sku ${header.sku}\"}.",
+        {"request": "Add the operation getStock to the contract stock-api.json: GET /stock/{sku} with the path parameter sku, a 200 answering a StockItem and a 404 answering an Error. Then the route getStock (rest-openapi routes each operation to direct:<operationId>): it calls a helper route lookup that sets the body to the stock file (resource:file:stock.json, as listStock does), unmarshals the body with Jackson and picks the SKU with the Groovy expression body.find { it.sku == headers.sku }, which leaves the item as the body, or null; getStock answers the item marshalled to JSON, or a 404 (header CamelHttpResponseCode) with {\"error\": \"unknown sku ${header.sku}\"}.",
          "check": {"file_regex": "getStock", "files": {"stock-api.json": "\"operationId\": \"getStock\""}, "probes": [GET("/api/stock/CAMEL-MUG", 200, "\"sku\":\"CAMEL-MUG\",\"qty\":42"), GET("/api/stock/CAMEL-SOCKS", 404, "unknown sku CAMEL-SOCKS")]},
          "reference": {OS: os_s2, "stock-api.json": CONTRACT_V2}},
         {"request": "Add the operation reserveStock to the contract: POST /stock/{sku}/reserve with a JSON request body Reservation (orderId string, qty integer, both required), a 200 answering a ReservationResult (sku, reserved, remaining), and a 404. Then the route reserveStock: unmarshal the body with Jackson, keep it in an exchange property reservation, call direct:lookup, answer 404 for an unknown SKU as getStock does, otherwise log \"Reserved ${exchangeProperty.reservation[qty]} x ${header.sku} for ${exchangeProperty.reservation[orderId]}\" and answer the JSON {\"sku\": \"${header.sku}\", \"reserved\": ${exchangeProperty.reservation[qty]}, \"remaining\": ${body[qty]}}.",

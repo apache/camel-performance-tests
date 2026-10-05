@@ -24,11 +24,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TAG = os.environ.get("BENCH_TAG", "mcp-" + MODEL.replace(":", "_").replace("/", "_"))
 OUT = os.path.join(HERE, "stepwise", TAG)
 MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "20"))
+# the conversation grows over an example's steps (logs with stack traces are the bulk); at 32k a long example ran out
+# of context and the model stopped after a few words without a tool call (round 3, circuit-breaker steps 2-3)
+NUM_CTX = int(os.environ.get("BENCH_NUM_CTX", "65536"))
 # how many log records a step is scored on. A step that provokes failures on purpose (errors_ok) fills the window
 # with its own expected errors, and the line the check looks for scrolls out of it while sitting in the run log
 LOG_WINDOW = int(os.environ.get("BENCH_LOG_WINDOW", "400"))
 # round 2: BENCH_REFERENCE=1 skips the model and applies each step's reference files instead, to check the steps file itself
 REFERENCE = os.environ.get("BENCH_REFERENCE") == "1"
+# CAMEL-24834: before each step, ask camel_runtime_tool_groups what the app has and offer its groups' tools and guidance,
+# as the AI panel of the camel-jbang views does for a local model (the tool list changes only when the fingerprint does)
+TOOL_GROUPS = os.environ.get("BENCH_TOOL_GROUPS") == "1"
 TOOL_RESULT_CAP = 6000
 
 SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "camel_validate_source", "camel_get_files", "camel_write_file",
@@ -62,7 +68,7 @@ def ollama_chat(messages, tools):
     # thinking off, as the Camel CLI's own Ollama client sends and as the one-shot harness does: with it on, four of
     # 33 HTTP steps in series s5 spent 4-8 minutes and 12-28k tokens and answered nothing (CAMEL-24886)
     body = json.dumps({"model": MODEL, "messages": messages, "tools": tools, "stream": False, "think": False,
-                       "options": {"temperature": 0.2, "num_ctx": 32768}}).encode()
+                       "options": {"temperature": 0.2, "num_ctx": NUM_CTX}}).encode()
     req = urllib.request.Request(HOST + "/api/chat", data=body, headers={"Content-Type": "application/json"})
     t0 = time.time()
     with urllib.request.urlopen(req, timeout=1800) as r:
@@ -396,11 +402,23 @@ def main():
         name = (data or {}).get("name") or os.path.basename(project)
         time.sleep(6)
 
-    messages = [{"role": "system", "content": SYSTEM.replace("{directory}", project).replace("{name}", name)}]
+    base_system = SYSTEM.replace("{directory}", project).replace("{name}", name)
+    messages = [{"role": "system", "content": base_system}]
+    groups_fp = None
     results = []
     try:
         for step in cfg["steps"]:
             sid = step["id"]
+            if TOOL_GROUPS and not REFERENCE:
+                data, raw = jcall(mcp, "camel_runtime_tool_groups", {"nameOrPid": name})
+                if isinstance(data, dict) and data.get("fingerprint") != groups_fp:
+                    groups_fp = data.get("fingerprint")
+                    extra = [t for g in data.get("groups") or [] for t in g.get("tools") or []]
+                    tools = to_ollama_tools(all_tools, SHARED + EXTRA + [t for t in extra if t not in SHARED + EXTRA])
+                    guidance = [g["guidance"] for g in data.get("groups") or [] if g.get("guidance")]
+                    messages[0]["content"] = base_system + (
+                        "\nThe running integration:\n" + "".join("- " + g + "\n" for g in guidance) if guidance else "")
+                print(f"step{sid}: tool groups {groups_fp} -> {raw[:300]}", file=log, flush=True)
             before = {"route": read(os.path.join(project, cfg["route_file"])), "props": read(os.path.join(project, cfg.get("props_file", "application.properties")))}
             before["error_records"], before["error_count"], before["reload_records"], before["log_records"] \
                 = error_snapshot(mcp, name)
@@ -435,6 +453,10 @@ def main():
                             args["directory"] = project
                         if fn["name"] in ("camel_get_log", "camel_get_errors", "camel_control", "camel_eval_expression") and "name" not in args:
                             args["name"] = name
+                        # the runtime tools take nameOrPid; the AI panel always means the selected integration, and
+                        # without it they fail on "multiple processes running" when a peer app runs beside it
+                        if fn["name"].startswith("camel_runtime_") and not args.get("nameOrPid"):
+                            args["nameOrPid"] = name
                         if fn["name"] in ("camel_write_file", "camel_edit_file"):
                             writes += 1
                         try:

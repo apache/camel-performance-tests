@@ -1,6 +1,7 @@
 # run outputs
 oneshot-*/
 stepwise/
+ref/
 local/
 *.log
 *.out
@@ -11,4 +12,5 @@ stepwise-ladder/
 stepwise-project/
 # per-run notes and summaries written beside a run
 *.build.txt
+*.jars.sha
 *.summary

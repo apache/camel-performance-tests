@@ -2,7 +2,7 @@
 # Runs the round-2 stepwise set: every steps-ladder/<name>.json, each from a fresh project, k times.
 # Usage: run-stepwise-ladder.sh <tag> [k]      Results: stepwise/<tag>-<i>/<name>/ (results.json, run.log, traces)
 # BENCH_REFERENCE=1 applies the reference files instead of asking the model (the reference pass of the steps files).
-# BENCH_ONLY=<name> runs one example.
+# BENCH_ONLY="<name> [<name> ...]" runs only those examples.
 set -u
 TAG="${1:?usage: run-stepwise-ladder.sh <tag> [k]}"
 K="${2:-1}"
@@ -14,7 +14,7 @@ for i in $(seq 1 "$K"); do
   : > "stepwise-$T.log"   # a fresh log per run, so a later wait on its DONE line cannot see an earlier run's
   for f in steps-ladder/*.json; do
     name=$(basename "$f" .json)
-    if [[ -n "${BENCH_ONLY:-}" && "$name" != "$BENCH_ONLY" ]]; then continue; fi
+    if [[ -n "${BENCH_ONLY:-}" && " $BENCH_ONLY " != *" $name "* ]]; then continue; fi
     python3 gen_stepwise.py "$name" > /dev/null
     echo "[$T] $name start $(date +%T)" | tee -a "stepwise-$T.log"
     BENCH_STEPS="$f" BENCH_TAG="$T/$name" python3 agent_mcp_stepwise.py > "stepwise-$T-$name.out" 2>&1

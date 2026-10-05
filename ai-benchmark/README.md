@@ -22,7 +22,8 @@ Two benchmarks, both scored by what actually runs, not by reading the model's ou
 2. **Stepwise** (`agent_mcp_stepwise.py`): the model edits a running integration one request at a time ("fire every
    five seconds", "add a choice", "add error handling", eight requests) through the write, run, log and error tools of
    the MCP server. Each step is scored on the file on disk (a regex), the properties file, the log of the running
-   integration after the reload, and the errors, against a reference checkpoint.
+   integration after the reload, and the errors, against a reference checkpoint. Since round 2 the stepwise benchmark
+   runs over a ladder of examples, one steps file each; see [The stepwise ladder](#the-stepwise-ladder).
 
 The model is never shown the example projects or their catalog tools; the one-shot tool set is restricted to catalog
 lookups and validation (`BENCH_TOOL_ALLOW` in `run-suite.sh`): the shared `camel_catalog_doc`, `camel_catalog_find`,
@@ -127,3 +128,97 @@ Added 2026-09-17 for the second series.
   - `pre` / `post`: shell commands run in this directory around the example (openapi-client starts the reference
     petstore server from `seed/openapi-server-ref/` and stops it after).
 - Docker Desktop must be running for `infra`; `camel infra` pulls the images on first use.
+
+## The stepwise ladder
+
+Added in round 2 (2026-09-19 onwards); the main benchmark since 2026-09-21, because building an integration one
+request at a time is how people work with Camel, and the one-shot prompt is not.
+
+Each rung of the [camel-jbang-examples](https://github.com/apache/camel-jbang-examples) ladder that runs without
+Docker (plus the sql rung, with `camel infra`) is one stepwise scenario, written from its README's "Build it step by
+step" section: the README's step 1 is the starting project, and each
+later step is one request to the model. The model edits the running integration through the MCP server; the harness
+scores each step before sending the next.
+
+```bash
+./start-server.sh                       # set CAMEL_MCP_JAR to measure a locally built camel-jbang-mcp
+python3 gen_stepwise.py                 # writes steps-ladder/<name>.json and stepwise-ladder/<name>/ for every example
+BENCH_REFERENCE=1 ./run-stepwise-ladder.sh ref       # the reference pass: must pass every step before a model run
+./run-stepwise-ladder.sh s1 5           # five runs: stepwise/s1-1 .. s1-5, then the summary table
+./run-http.sh h1 3                      # only the four HTTP rungs: stock-api, http-client, openapi-server/-client
+BENCH_ONLY="transform-xslt route-aggregator" ./run-stepwise-ladder.sh x 1   # any subset, names as in steps-ladder/
+python3 summarize_stepwise.py s1 5      # the summary again: passes per example and step, runs with every step passed
+```
+
+A full ladder run of the 21 examples takes about 65 minutes on the Mac mini the series runs on (qwen3.6:35b-a3b in
+Ollama); the four HTTP rungs about 13. Every JSON
+file in `steps-ladder/` is run, so keep hand-made scenario files out of it.
+
+### Where the steps come from
+
+`gen_stepwise.py` holds the definitions: for each example the starting files (`initial`), the steps (`request`,
+`check`, `reference`) and the settings below. `steps-ladder/` and `stepwise-ladder/` are generated (git ignores them),
+so change a step in `gen_stepwise.py` and never in the JSON. The runner calls `gen_stepwise.py <name>` before every
+pass, which rewrites that example's steps file and resets its project, so each pass starts from the same files.
+
+- `seed`: files under `seed/<name>/` copied into the project (data files such as `stock.json`, `orders/`, a contract);
+  `exclude_seeds` leaves out a file the model is asked to write (`packing-slip.xsl`).
+- `peer`: a second app the example talks to, started with `camel run --source-dir` before the model's app and stopped
+  after it. `contracts-openapi-client` calls the stock API in `seed/_peer-openapi-server` on port 8080.
+- `infra`: services started with `camel infra run` (the sql rung's Postgres); they stay up across the passes of a run
+  and are stopped when the run is over. Docker must be running.
+- `restart`: on a step that adds or changes Java, the harness restarts the app after the model's turn, as the README's
+  step says; a reload does not compile a class.
+- `wait_seconds`: how long to wait after the reload before the log and files are checked.
+
+### What a step is scored on
+
+`ok` means `file_ok`, `props_ok` and `log_ok` all hold and the step logged no new errors (`ok_final` is the same
+without the errors condition; the summary reports it as "final state right", since a model that tests its own app
+with the HTTP request tool causes errors on the way to a right answer, which `ok` counts against it). The checks, all
+optional:
+
+| Check | Passes when |
+|---|---|
+| `file_regex`, `file_regex2` | the route file matches (both, if both are given) |
+| `file_not_regex` | the route file does not match |
+| `props_regex` | `application.properties` matches |
+| `files` | `{name: regex}`: another project file matches; found by name anywhere in the project if not at that path |
+| `log_regex` | a regex or a list of them; every one matches an INFO or WARN record (`min_log` times, default 1) |
+| `log_not_regex` | no record logged after this step's reload matches |
+| `interval_min` | the first two records matching `log_regex` are at least this many seconds apart |
+| `probes` | HTTP requests (`method`, `url`, `headers`, `body`, `expect_status`, `body_regex`) sent after the reload; each is retried up to six times, two seconds apart, until status and body match, since the old route may still answer during a reload |
+| `errors_ok` | errors in the log do not fail the step (a step that provokes failures on purpose) |
+| `min_errors` | at least this many errors must be logged |
+
+Errors are counted per step: ERROR records in the log and entries from `camel_get_errors` that were not there before
+the step.
+
+### Tools and model settings
+
+The model gets the shared authoring tools (`SHARED` in `agent_mcp_stepwise.py`: catalog doc/find/sample, validate,
+get/write/edit file, run, control, log, errors, eval expression, error diagnose) plus `camel_catalog_docs`,
+`camel_component_properties` and `camel_configuration_validate`, and at most 20 tool calls per step
+(`BENCH_TOOL_CALLS`), in a 64k context (`BENCH_NUM_CTX`; at 32k the longer examples ran out of context by their last
+step and the model stopped without a tool call). `camel_edit_file` is in the set because a model that rewrites a whole
+file to change one line corrupts lines it was not asked to touch. `BENCH_EXTRA_TOOLS` adds tools for an experiment
+(the SQL tool group of CAMEL-24834).
+
+The harness sends `think: false` to Ollama. With thinking on, the HTTP series s5 lost 4 of 33 steps to thinking
+spirals of 4 to 8 minutes and 12k to 28k tokens that ended without an answer.
+
+### What comes out
+
+`stepwise/<tag>/<name>/`: `results.json` (per step: the checks, probe answers, errors with their first lines, tool
+calls, refused writes, seconds, tokens, the model's closing answer), `run.log` (one line per step), `step<n>.trace.jsonl`
+(every model turn and tool call), `step<n>.after.yaml` (the route file after the step), `camel-run.out` and
+`peer-run.out` (the apps' console). `stepwise-<tag>.log` has one line per example.
+
+### Pitfalls
+
+- Never write a log or output file inside a project the app watches (`--source-dir`): every write reloads the app,
+  and a reload that logs writes again. Output belongs under `stepwise/`, which is outside the projects.
+- Run the reference pass after any change to `gen_stepwise.py`, a seed, or Camel: a reference that fails is a
+  harness or Camel bug, not a model result.
+- Do not share one MCP server between two runs, a reference pass included: the step logs and error counts of one get
+  mixed into the other.
