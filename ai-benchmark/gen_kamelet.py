@@ -249,7 +249,8 @@ TAG_ROUTE = """- route:
 CUSTOM = {"name": "kamelet-custom", "steps": [
     {"id": 1,
      "request": "Write a custom action Kamelet named tag-order-action in the file %s in the project. It has one "
-                "required property tag and appends \" [<tag>]\" to the message body. Then change the route: every 2 "
+                "required property tag and appends a space and the tag in square brackets to the message body (with tag "
+                "priority the body Order ORD-5 becomes Order ORD-5 [priority]). Then change the route: every 2 "
                 "seconds set the body to \"Order ORD-5\", send it through tag-order-action with tag priority, and log "
                 "\"Tagged: <body>\"." % TAG_FILE,
      "check": {"file_regex": "tag-order-action", "files": {TAG_FILE: "kind:\\s*Kamelet"},
