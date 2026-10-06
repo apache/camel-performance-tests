@@ -19,8 +19,14 @@ for i in $(seq 1 "$K"); do
     echo "[$T] $name start $(date +%T)" | tee -a "stepwise-$T.log"
     BENCH_STEPS="$f" BENCH_TAG="$T/$name" python3 agent_mcp_stepwise.py > "stepwise-$T-$name.out" 2>&1
     tail -1 "stepwise/$T/$name/run.log" | tee -a "stepwise-$T.log"
-    # safety net: the harness stops its integration, but an interrupted run leaves one behind
-    camel stop "$name" > /dev/null 2>&1 || true
+    # safety net: the harness stops its integration, but an interrupted run leaves one behind, and an app the model
+    # started itself with camel_run, or renamed, is not stopped by name (r5: an orphan held port 8080 for six hours
+    # and failed every later HTTP rung). The machine runs only the benchmark during a series, so stop them all.
+    camel stop > /dev/null 2>&1 || true
+    sleep 3
+    if lsof -nP -iTCP:8080 -sTCP:LISTEN > /dev/null 2>&1; then
+      echo "[$T] WARNING port 8080 still in use after $name: $(lsof -nP -iTCP:8080 -sTCP:LISTEN | tail -1)" | tee -a "stepwise-$T.log"
+    fi
   done
   # the services an example needed stay up across its passes; stop them once the run is over
   for svc in $(python3 -c "
