@@ -1,22 +1,23 @@
-# Results of the third series, 2026-10-02 to 2026-10-05 (so far)
+# Results of the third series, 2026-10-02 to 2026-10-06 (so far)
 
 Round 3 started from a clean slate on the Camel main branch of 2026-10-02 (b223a80dd6e1), with the same local model
 (`qwen3.6:35b-a3b` via Ollama on an Apple M4 Pro, 64 GB) and the stepwise ladder of round 2 (21 examples, 71 steps,
 20 tool calls per step). A full-ladder baseline was run, the failures were read, and small series on one or two
 examples measured each change before it was merged. A second baseline on 2026-10-04 (main 6589e123eb0f, every fix
-of the weekend merged) closes this part; the notes call it round 4. Everything measured here is in Camel 4.23.
+of the weekend merged; the notes call it round 4) and a third on 2026-10-05/06 (main ba28701069f7, the 4.23.0
+candidate with the body-type fixes of 2026-10-05) close this part. Everything measured here is in Camel 4.23.
 
-## The two baselines
+## The baselines
 
-| | r3 (10-02/03) | r4 (10-04/05) |
-|---|---|---|
-| Camel main | b223a80dd6e1 | 6589e123eb0f |
-| Context / tool groups | 32k / off | 64k / on |
-| Steps passed, strict | 300 of 355 (84.5%) | 307 of 355 (86.5%) |
-| Steps passed, final | 307 of 355 (86.5%) | 318 of 355 (89.6%) |
-| Clean runs (every step passed) | 55 of 105 | 65 of 105 |
-| Examples clean in all 5 runs (pass^5) | 7 of 21 | 8 of 21 |
-| The four HTTP rungs, strict / final | 52 / 54 of 65 | 50 / 56 of 65 |
+| | r3 (10-02/03) | r4 (10-04/05) | r5 (10-05/06) |
+|---|---|---|---|
+| Camel main | b223a80dd6e1 | 6589e123eb0f | ba28701069f7 |
+| Context / tool groups | 32k / off | 64k / on | 64k / on |
+| Steps passed, strict | 300 of 355 (84.5%) | 307 of 355 (86.5%) | 318 of 355 (89.6%) |
+| Steps passed, final | 307 of 355 (86.5%) | 318 of 355 (89.6%) | 329 of 355 (92.7%) |
+| Clean runs (every step passed) | 55 of 105 | 65 of 105 | 77 of 105 |
+| Examples clean in all 5 runs (pass^5) | 7 of 21 | 8 of 21 | 9 of 21 |
+| The four HTTP rungs, strict / final | 52 / 54 of 65 | 50 / 56 of 65 | 60 / 62 of 65 |
 
 Round 2 ended at 82.7% strict and 85.2% final (s19, scored with the older harness checks).
 
@@ -40,8 +41,13 @@ the same build.
 
 Reading the tables:
 
-- The baseline moved from 84.5% to 86.5% strict and from 86.5% to 89.6% final between the two baselines; 10 more
-  runs passed every step.
+- Over the three baselines strict went from 84.5% to 89.6% and final from 86.5% to 92.7%; 22 more runs passed every
+  step. Most of the last step came from the HTTP rungs: openapi-server went from 12 to 18 of 20 between r4 and r5.
+- r5 is two series on the same build: the 17 other rungs from the overnight run, and the four HTTP rungs run again
+  (r5h). In the overnight run the model started a second copy of an app itself, the harness did not stop it, and it
+  held port 8080 for the rest of the night, so every later HTTP rung failed to start. The harness now stops every
+  integration after each example. The reference pass before r5 passed 71 of 71: the new validator checks stop none
+  of the reference routes.
 - The biggest single gain was the context: at 32k the circuit-breaker example filled it in every run.
 - Not every change paid off in the numbers: the log without stack traces, the tool groups, the HTTP tool group and
   the error-handler hint did not move the score. They were merged for what they do for the model's context and
