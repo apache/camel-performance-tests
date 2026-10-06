@@ -340,6 +340,21 @@ def score(step, project, cfg, mcp, name, before):
     # ok_final: the end state is right (files and log), whatever happened on the way; ok also needs no errors
     result["ok_final"] = result["file_ok"] and result["props_ok"] and result["log_ok"]
     result["ok"] = result["ok_final"] and errors_fine
+    # ok_lastwrite: the end state is right and the model's last version logged no errors; the errors of attempts it
+    # fixed on the way do not count (they do in ok). Without a write in the step it is the same as ok
+    last = before.get("last_write")
+    if last is not None:
+        after = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in last[0]
+                    and error_key(l) not in seen)
+        if isinstance(data, dict):
+            after += max(0, len(data.get("errors", []) or []) - max(last[1], before.get("error_count", 0)))
+    else:
+        after = result["errors"]
+    result["errors_after_last_write"] = after
+    lastwrite_fine = after == 0 or bool(chk.get("errors_ok"))
+    if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
+        lastwrite_fine = False
+    result["ok_lastwrite"] = result["ok_final"] and lastwrite_fine
     result["log_sample"] = msgs[:5]
     return result, route, props
 
@@ -425,6 +440,9 @@ def main():
             trace = open(os.path.join(OUT, f"step{sid}.trace.jsonl"), "w")
             messages.append({"role": "user", "content": step["request"]})
             calls = 0; tokens = 0; t0 = time.time(); writes = 0; refused = 0; answer = ""
+            # the errors as they stood after the model's last accepted write: what came after is what its final
+            # version did; what came before were attempts it fixed (ok_lastwrite)
+            before["last_write"] = None
             if REFERENCE:
                 # the reference files stand in for the model's edits; the checks then score the steps file itself
                 writes += apply_reference(project, cfg, step.get("reference") or {}, mcp, name, before)
@@ -466,6 +484,8 @@ def main():
                         if fn["name"] in ("camel_write_file", "camel_edit_file") and ('"invalid"' in out
                                 or '"not-found"' in out or '"ambiguous"' in out or out.startswith("ERROR")):
                             refused += 1
+                        elif fn["name"] in ("camel_write_file", "camel_edit_file"):
+                            before["last_write"] = error_snapshot(mcp, name)
                         out = out[:TOOL_RESULT_CAP]
                         trace.write(json.dumps({"tool": fn["name"], "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800]}) + "\n"); trace.flush()
                         messages.append({"role": "tool", "content": out, "tool_name": fn["name"]})
