@@ -35,6 +35,9 @@ REFERENCE = os.environ.get("BENCH_REFERENCE") == "1"
 # CAMEL-24834: before each step, ask camel_runtime_tool_groups what the app has and offer its groups' tools and guidance,
 # as the AI panel of the camel-jbang views does for a local model (the tool list changes only when the fingerprint does)
 TOOL_GROUPS = os.environ.get("BENCH_TOOL_GROUPS") == "1"
+# the Kamelet side check: bare offers the file tools only, no catalog, validation or runtime feedback (a write of
+# invalid YAML is still refused); what the model knows by itself
+BARE = os.environ.get("BENCH_BARE") == "1"
 TOOL_RESULT_CAP = 6000
 
 SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "camel_validate_source", "camel_get_files", "camel_write_file",
@@ -43,6 +46,8 @@ SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "ca
 EXTRA = ["camel_catalog_docs", "camel_component_properties", "camel_configuration_validate"]
 # CAMEL-24834 tool-group experiment: BENCH_EXTRA_TOOLS=camel_execute_sql,camel_get_datasources adds a group to the set
 EXTRA += [t for t in os.environ.get("BENCH_EXTRA_TOOLS", "").split(",") if t]
+
+BARE_TOOLS = ["camel_get_files", "camel_write_file", "camel_edit_file"]
 
 SYSTEM = (
     "You are an Apache Camel assistant helping a developer edit a running Camel integration through the Camel MCP server.\n\n"
@@ -291,7 +296,10 @@ def score(step, project, cfg, mcp, name, before):
     def lvl(l): return (l.get("level") or "").upper()
     # a multi-line message (a pretty-printed body) comes as one record with a detail block: match on both
     def msg(l): return (l.get("message") or l.get("msg") or "") + ("\n" + l["detail"] if l.get("detail") else "")
-    recent = [l for l in lines if isinstance(l, dict) and lvl(l) in ("INFO", "WARN")]
+    # a failed reload is a WARN that quotes the route (the endpoint URI with its values), so a log_regex on a value
+    # matched the failure itself; those records are not what the route logged (Kamelet side check, kb-1)
+    def reload_failure(l): return any(t in msg(l) for t in ("Error reloading routes", "Reload failed", "Failed to create route"))
+    recent = [l for l in lines if isinstance(l, dict) and lvl(l) in ("INFO", "WARN") and not reload_failure(l)]
     msgs = [msg(l) for l in recent]
     # round 2: log_regex may be a list (all must match), or absent (a step with nothing to see in the log)
     regexes = chk.get("log_regex")
@@ -321,6 +329,13 @@ def score(step, project, cfg, mcp, name, before):
                 result["log_ok"] = False
         except Exception:
             pass
+    # the step ends on a failed reload: the app runs the routes of before (or none), not what the model wrote
+    fresh_reload_recs = [l for l in lines if isinstance(l, dict) and is_reload(l) and reload_key(l) not in seen_reloads]
+    if fresh_reload_recs:
+        last_reload = max(fresh_reload_recs, key=lambda l: tod(l.get("time") or l.get("timestamp")) or 0)
+        if "Error reloading routes" in msg(last_reload):
+            result["reload_failed"] = True
+            result["log_ok"] = False
     # round 2: errors are counted per step (the log window and the error file keep an earlier step's stack traces)
     seen = before.get("error_records") or set()
     result["errors"] = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in seen)
@@ -367,7 +382,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     log = open(os.path.join(OUT, "run.log"), "a")
     mcp = McpClient(MCP_URL); mcp.initialize(); all_tools = mcp.list_tools()
-    tools = to_ollama_tools(all_tools, SHARED + EXTRA)
+    tools = to_ollama_tools(all_tools, BARE_TOOLS if BARE else SHARED + EXTRA)
     print(f"tools: {[t['function']['name'] for t in tools]}", file=log, flush=True)
 
     proc = None
@@ -418,13 +433,18 @@ def main():
         time.sleep(6)
 
     base_system = SYSTEM.replace("{directory}", project).replace("{name}", name)
+    if BARE:
+        # the guidelines about tools it does not have would only confuse it
+        base_system = "\n".join(l for l in base_system.splitlines()
+                                 if not any(t in l for t in ("camel_validate_source", "camel_catalog_sample")))
+        base_system = base_system.replace(" (camel_catalog_doc has the option names)", "")
     messages = [{"role": "system", "content": base_system}]
     groups_fp = None
     results = []
     try:
         for step in cfg["steps"]:
             sid = step["id"]
-            if TOOL_GROUPS and not REFERENCE:
+            if TOOL_GROUPS and not REFERENCE and not BARE:
                 data, raw = jcall(mcp, "camel_runtime_tool_groups", {"nameOrPid": name})
                 if isinstance(data, dict) and data.get("fingerprint") != groups_fp:
                     groups_fp = data.get("fingerprint")

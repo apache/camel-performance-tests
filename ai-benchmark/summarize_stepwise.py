@@ -8,7 +8,8 @@ errors were logged after the model's last accepted write; runs before it was rec
 import json, os, sys
 tag = sys.argv[1]; k = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 tags = [f"{tag}-{i}" for i in range(1, k + 1)] if k > 1 else [tag]
-names = sorted(os.path.splitext(f)[0] for f in os.listdir("steps-ladder") if f.endswith(".json"))
+steps_dir = os.environ.get("BENCH_STEPS_DIR", "steps-ladder")
+names = sorted(os.path.splitext(f)[0] for f in os.listdir(steps_dir) if f.endswith(".json"))
 print(f"| example | steps | passes per step ({' '.join(tags)}) | all steps passed | last version right | final state right |")
 print("|---|---|---|---|---|---|")
 total = 0; possible = 0; clean = 0; final = 0; lastw = 0
