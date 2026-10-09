@@ -216,7 +216,7 @@ EXAMPLES.append({
         {"request": "In the stylesheet, add a for-each over the order's line elements writing one item element each, with the sku and the qty as pieces.",
          "check": {"files": {"packing-slip.xsl": "for-each"}, "log_regex": "(?s)<item.{0,120}CAMEL-TSHIRT"},
          "reference": {"packing-slip.xsl": XSL_V2}},
-        {"request": "Add a pieces element with the total number of pieces, using sum() over the lines' qty.",
+        {"request": "Add an element named pieces with the total number of pieces, using sum() over the lines' qty.",
          "check": {"files": {"packing-slip.xsl": "sum\\("}, "log_regex": "(?s)<pieces.{0,20}3"},
          "reference": {"packing-slip.xsl": XSL_V3}},
     ]})
