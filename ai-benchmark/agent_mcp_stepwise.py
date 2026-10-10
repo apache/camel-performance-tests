@@ -110,13 +110,23 @@ def jcall(mcp, name, args):
 
 
 def log_lines(mcp, name, limit=40):
-    data, raw = jcall(mcp, "camel_get_log", {"name": name, "limit": limit})
-    if isinstance(data, dict):
-        for k in ("lines", "records", "entries"):
-            if k in data:
-                return data[k]
-    if isinstance(data, list):
-        return data
+    # a running app always has log records, so an empty answer is a failed read, not an empty log: retried, as one
+    # empty read failed a reference step that passed on both reruns (salref, Oct 10, fail-well-circuit-breaker step 1)
+    for attempt in range(3):
+        data, raw = jcall(mcp, "camel_get_log", {"name": name, "limit": limit})
+        lines = []
+        if isinstance(data, dict):
+            for k in ("lines", "records", "entries"):
+                if k in data:
+                    lines = data[k]
+                    break
+        elif isinstance(data, list):
+            lines = data
+        if lines:
+            return lines
+        if attempt < 2:
+            print(f"camel_get_log {name}: no records, reading again ({str(raw)[:120]})", flush=True)
+            time.sleep(1)
     return []
 
 
