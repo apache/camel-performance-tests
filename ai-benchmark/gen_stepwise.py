@@ -643,23 +643,23 @@ HC = "http-client.camel.yaml"
 REST_ONE = "- rest:\n    path: /stock\n    get:\n      - path: \"/{sku}\"\n        to:\n          uri: direct:one-sku\n"
 STOCK_SERVICE = route("stock-service", DIRECT("one-sku"), const("resource:file:stock.json") + GROOVY_SKU + NOT_FOUND + CT_JSON)
 SERVER = REST_ONE + "\n" + STOCK_SERVICE + "\n"
-def set_prop(name, expr, ind="        "):
-    return ind + "- setProperty:\n" + ind + "    name: " + name + "\n" + ind + "    expression:\n" + ind + "      simple:\n" + ind + "        expression: \"" + expr + "\"\n"
+def set_var(name, expr, ind="        "):
+    return ind + "- setVariable:\n" + ind + "    name: " + name + "\n" + ind + "    expression:\n" + ind + "      simple:\n" + ind + "        expression: \"" + expr + "\"\n"
 NULL_BODY = I + "- setBody:\n" + I + "    expression:\n" + I + "      simple:\n" + I + "        expression: \"${null}\"\n"
 UNMARSHAL_IN = I + "- unmarshal:\n" + I + "    json:\n" + I + "      library: Jackson\n"
 TO_FIXED = I + "- to:\n" + I + "    uri: \"http://localhost:8080/stock/CAMEL-MUG\"\n"
-TOD_SKU = I + "- toD:\n" + I + "    uri: \"http://localhost:8080/stock/${exchangeProperty.sku}\"\n"
-TOD_SKU_NOFAIL = I + "- toD:\n" + I + "    uri: \"http://localhost:8080/stock/${exchangeProperty.sku}?throwExceptionOnFailure=false\"\n"
-PROPS_LINE = set_prop("sku", "${body[sku]}", I) + set_prop("needed", "${body[qty]}", I)
+TOD_SKU = I + "- toD:\n" + I + "    uri: \"http://localhost:8080/stock/${variable.sku}\"\n"
+TOD_SKU_NOFAIL = I + "- toD:\n" + I + "    uri: \"http://localhost:8080/stock/${variable.sku}?throwExceptionOnFailure=false\"\n"
+PROPS_LINE = set_var("sku", "${body[sku]}", I) + set_var("needed", "${body[qty]}", I)
 STOCK_CHOICE = (I + "- choice:\n" + I + "    when:\n" + I + "      - expression:\n" + I + "          simple:\n" + I + "            expression: \"${header.CamelHttpResponseCode} != 200\"\n"
-                + I + "        steps:\n" + log("${exchangeProperty.orderId}: ${body[error]} (HTTP ${header.CamelHttpResponseCode})", I + "          ")
-                + I + "      - expression:\n" + I + "          simple:\n" + I + "            expression: \"${body[qty]} >= ${exchangeProperty.needed}\"\n"
-                + I + "        steps:\n" + log("${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, ${body[qty]} in stock, ok", I + "          ")
-                + I + "    otherwise:\n" + I + "      steps:\n" + log("${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, only ${body[qty]} in stock, back-order", I + "        "))
+                + I + "        steps:\n" + log("${variable.orderId}: ${body[error]} (HTTP ${header.CamelHttpResponseCode})", I + "          ")
+                + I + "      - expression:\n" + I + "          simple:\n" + I + "            expression: \"${body[qty]} >= ${variable.needed}\"\n"
+                + I + "        steps:\n" + log("${variable.orderId}: ${variable.sku} x ${variable.needed}, ${body[qty]} in stock, ok", I + "          ")
+                + I + "    otherwise:\n" + I + "      steps:\n" + log("${variable.orderId}: ${variable.sku} x ${variable.needed}, only ${body[qty]} in stock, back-order", I + "        "))
 hc_s1 = SERVER + route("check-stock", FILE_ORDERS, UNMARSHAL + log("Order ${body[orderId]} with ${body[lines].size()} line(s)"))
 hc_s2 = SERVER + route("check-stock", FILE_ORDERS, UNMARSHAL + split(NULL_BODY + TO_FIXED + log("Stock answer: ${body}", I)))
-hc_s3 = SERVER + route("check-stock", FILE_ORDERS, UNMARSHAL + set_prop("orderId", "${body[orderId]}") + split(PROPS_LINE + NULL_BODY + TOD_SKU + UNMARSHAL_IN + log("${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, ${body[qty]} in stock", I)))
-hc_s4 = SERVER + route("check-stock", FILE_ORDERS, UNMARSHAL + set_prop("orderId", "${body[orderId]}") + split(PROPS_LINE + NULL_BODY + TOD_SKU_NOFAIL + UNMARSHAL_IN + STOCK_CHOICE))
+hc_s3 = SERVER + route("check-stock", FILE_ORDERS, UNMARSHAL + set_var("orderId", "${body[orderId]}") + split(PROPS_LINE + NULL_BODY + TOD_SKU + UNMARSHAL_IN + log("${variable.orderId}: ${variable.sku} x ${variable.needed}, ${body[qty]} in stock", I)))
+hc_s4 = SERVER + route("check-stock", FILE_ORDERS, UNMARSHAL + set_var("orderId", "${body[orderId]}") + split(PROPS_LINE + NULL_BODY + TOD_SKU_NOFAIL + UNMARSHAL_IN + STOCK_CHOICE))
 EXAMPLES.append({
     "name": "connect-http-client", "route_file": HC, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "connect-http-client",
@@ -668,10 +668,10 @@ EXAMPLES.append({
         {"request": "Split the order over its lines (${body[lines]}) and for each line call the stock service over HTTP with a GET on http://localhost:8080/stock/CAMEL-MUG (a fixed SKU for now; set the body to null first, a GET sends no body) and log the response as \"Stock answer: ${body}\".",
          "check": {"file_regex": "http://localhost:8080/stock", "log_regex": "Stock answer: \\{\"sku\":\"CAMEL-MUG\",\"qty\":42\\}"},
          "reference": {HC: hc_s2}},
-        {"request": "Call the stock service for the line's own SKU: keep the order id, the line's sku and its qty in exchange properties orderId, sku and needed before the call (headers would travel on the HTTP request), build the URI per line with toD as http://localhost:8080/stock/${exchangeProperty.sku}, unmarshal the JSON answer and log \"${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, ${body[qty]} in stock\".",
+        {"request": "Call the stock service for the line's own SKU: keep the order id, the line's sku and its qty in variables orderId, sku and needed before the call (headers would travel on the HTTP request), build the URI per line with toD as http://localhost:8080/stock/${variable.sku}, unmarshal the JSON answer and log \"${variable.orderId}: ${variable.sku} x ${variable.needed}, ${body[qty]} in stock\".",
          "check": {"file_regex": "toD", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock", "ORD-1003: CAMEL-CAP x 1, 0 in stock"]},
          "reference": {HC: hc_s3}},
-        {"request": "Decide per line: add throwExceptionOnFailure=false to the HTTP call so a 404 does not throw, then a choice: when the header CamelHttpResponseCode is not 200 log \"${exchangeProperty.orderId}: ${body[error]} (HTTP ${header.CamelHttpResponseCode})\", when ${body[qty]} >= ${exchangeProperty.needed} log \"${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, ${body[qty]} in stock, ok\", otherwise log \"${exchangeProperty.orderId}: ${exchangeProperty.sku} x ${exchangeProperty.needed}, only ${body[qty]} in stock, back-order\".",
+        {"request": "Decide per line: add throwExceptionOnFailure=false to the HTTP call so a 404 does not throw, then a choice: when the header CamelHttpResponseCode is not 200 log \"${variable.orderId}: ${body[error]} (HTTP ${header.CamelHttpResponseCode})\", when ${body[qty]} >= ${variable.needed} log \"${variable.orderId}: ${variable.sku} x ${variable.needed}, ${body[qty]} in stock, ok\", otherwise log \"${variable.orderId}: ${variable.sku} x ${variable.needed}, only ${body[qty]} in stock, back-order\".",
          "check": {"file_regex": "throwExceptionOnFailure[=:] *false", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock, ok", "ORD-1003: CAMEL-CAP x 1, only 0 in stock, back-order"]},
          "reference": {HC: hc_s4}},
     ]})
@@ -696,21 +696,21 @@ NULL_404 = ("        - choice:\n            when:\n              - expression:\n
             + "                  - setBody:\n                      expression:\n                        simple:\n                          expression: '{\"error\": \"unknown sku ${header.sku}\"}'\n"
             "            otherwise:\n              steps:\n                - marshal:\n                    json:\n                      library: Jackson\n")
 GET_STOCK = route("getStock", DIRECT("getStock"), "        - to:\n            uri: direct:lookup\n" + NULL_404)
-RESERVE_BODY = ("        - setBody:\n            expression:\n              simple:\n                expression: '{\"sku\": \"${header.sku}\", \"reserved\": ${exchangeProperty.reservation[qty]}, \"remaining\": ${body[qty]}}'\n")
+RESERVE_BODY = ("        - setBody:\n            expression:\n              simple:\n                expression: '{\"sku\": \"${header.sku}\", \"reserved\": ${variable.reservation[qty]}, \"remaining\": ${body[qty]}}'\n")
 def reserve_route(validate, conflict):
     steps = UNMARSHAL
     if validate:
         steps += "        - validate:\n            expression:\n              simple:\n                expression: \"${body[orderId]} != null && ${body[qty]} > 0\"\n"
-    steps += set_prop("reservation", "${body}") + "        - to:\n            uri: direct:lookup\n"
+    steps += set_var("reservation", "${body}") + "        - to:\n            uri: direct:lookup\n"
     steps += ("        - choice:\n            when:\n              - expression:\n                  simple:\n                    expression: \"${body} == null\"\n"
               "                steps:\n" + set_header("CamelHttpResponseCode", "constant", "\"404\"", "                  ")
               + "                  - setBody:\n                      expression:\n                        simple:\n                          expression: '{\"error\": \"unknown sku ${header.sku}\"}'\n")
     if conflict:
-        steps += ("              - expression:\n                  simple:\n                    expression: \"${body[qty]} < ${exchangeProperty.reservation[qty]}\"\n"
+        steps += ("              - expression:\n                  simple:\n                    expression: \"${body[qty]} < ${variable.reservation[qty]}\"\n"
                   "                steps:\n" + set_header("CamelHttpResponseCode", "constant", "\"409\"", "                  ")
-                  + "                  - setBody:\n                      expression:\n                        simple:\n                          expression: '{\"error\": \"only ${body[qty]} ${header.sku} in stock, ${exchangeProperty.reservation[qty]} wanted for ${exchangeProperty.reservation[orderId]}\"}'\n")
-    steps += ("            otherwise:\n              steps:\n" + log("Reserved ${exchangeProperty.reservation[qty]} x ${header.sku} for ${exchangeProperty.reservation[orderId]}", "                ")
-              + "                - setBody:\n                    expression:\n                      simple:\n                        expression: '{\"sku\": \"${header.sku}\", \"reserved\": ${exchangeProperty.reservation[qty]}, \"remaining\": ${body[qty]}}'\n")
+                  + "                  - setBody:\n                      expression:\n                        simple:\n                          expression: '{\"error\": \"only ${body[qty]} ${header.sku} in stock, ${variable.reservation[qty]} wanted for ${variable.reservation[orderId]}\"}'\n")
+    steps += ("            otherwise:\n              steps:\n" + log("Reserved ${variable.reservation[qty]} x ${header.sku} for ${variable.reservation[orderId]}", "                ")
+              + "                - setBody:\n                    expression:\n                      simple:\n                        expression: '{\"sku\": \"${header.sku}\", \"reserved\": ${variable.reservation[qty]}, \"remaining\": ${body[qty]}}'\n")
     return route("reserveStock", DIRECT("reserveStock"), steps)
 ON_INVALID_400 = ("- onException:\n    exception:\n      - org.apache.camel.support.processor.PredicateValidationException\n    handled:\n      constant:\n        expression: \"true\"\n"
                   "    steps:\n" + set_header("CamelHttpResponseCode", "constant", "\"400\"", "      ")
@@ -730,13 +730,13 @@ EXAMPLES.append({
         {"request": "Add the operation getStock to the contract stock-api.json: GET /stock/{sku} with the path parameter sku, a 200 answering a StockItem and a 404 answering an Error. Then the route getStock (rest-openapi routes each operation to direct:<operationId>): it calls a helper route lookup that sets the body to the stock file (resource:file:stock.json, as listStock does), unmarshals the body with Jackson and picks the SKU with the Groovy expression body.find { it.sku == headers.sku }, which leaves the item as the body, or null; getStock answers the item marshalled to JSON, or a 404 (header CamelHttpResponseCode) with {\"error\": \"unknown sku ${header.sku}\"}.",
          "check": {"file_regex": "getStock", "files": {"stock-api.json": "\"operationId\": \"getStock\""}, "probes": [GET("/api/stock/CAMEL-MUG", 200, "\"sku\":\"CAMEL-MUG\",\"qty\":42"), GET("/api/stock/CAMEL-SOCKS", 404, "unknown sku CAMEL-SOCKS")]},
          "reference": {OS: os_s2, "stock-api.json": CONTRACT_V2}},
-        {"request": "Add the operation reserveStock to the contract: POST /stock/{sku}/reserve with a JSON request body Reservation (orderId string, qty integer, both required), a 200 answering a ReservationResult (sku, reserved, remaining), and a 404. Then the route reserveStock: unmarshal the body with Jackson, keep it in an exchange property reservation, call direct:lookup, answer 404 for an unknown SKU as getStock does, otherwise log \"Reserved ${exchangeProperty.reservation[qty]} x ${header.sku} for ${exchangeProperty.reservation[orderId]}\" and answer the JSON {\"sku\": \"${header.sku}\", \"reserved\": ${exchangeProperty.reservation[qty]}, \"remaining\": ${body[qty]}}.",
+        {"request": "Add the operation reserveStock to the contract: POST /stock/{sku}/reserve with a JSON request body Reservation (orderId string, qty integer, both required), a 200 answering a ReservationResult (sku, reserved, remaining), and a 404. Then the route reserveStock: unmarshal the body with Jackson, keep it in a variable reservation, call direct:lookup, answer 404 for an unknown SKU as getStock does, otherwise log \"Reserved ${variable.reservation[qty]} x ${header.sku} for ${variable.reservation[orderId]}\" and answer the JSON {\"sku\": \"${header.sku}\", \"reserved\": ${variable.reservation[qty]}, \"remaining\": ${body[qty]}}.",
          "check": {"file_regex": "reserveStock", "files": {"stock-api.json": "\"operationId\": \"reserveStock\""}, "log_regex": "Reserved 2 x CAMEL-MUG for ORD-1001", "probes": [POST("/api/stock/CAMEL-MUG/reserve", '{"orderId": "ORD-1001", "qty": 2}', 200, "\"reserved\": 2")]},
          "reference": {OS: os_s3, "stock-api.json": CONTRACT_V3}},
         {"request": "Turn on the contract check: clientRequestValidation true in the restConfiguration, so a POST without a body or with the wrong content type gets a 400 from the contract. In reserveStock add a validate step with the simple predicate ${body[orderId]} != null && ${body[qty]} > 0 right after the unmarshal, and a top-level onException for org.apache.camel.support.processor.PredicateValidationException, handled, that answers 400 (CamelHttpResponseCode) with {\"error\": \"orderId and a positive qty are required\"}.",
          "check": {"file_regex": "clientRequestValidation", "file_regex2": "PredicateValidationException", "probes": [POST("/api/stock/CAMEL-MUG/reserve", None, 400), POST("/api/stock/CAMEL-MUG/reserve", '{"orderId": "ORD-1001", "qty": 0}', 400, "positive qty"), POST("/api/stock/CAMEL-MUG/reserve", '{"orderId": "ORD-1001", "qty": 2}', 200, "\"reserved\": 2")], "errors_ok": True},
          "reference": {OS: os_s4}},
-        {"request": "Short stock is a conflict: in reserveStock, when the stock's ${body[qty]} is less than ${exchangeProperty.reservation[qty]} answer 409 with {\"error\": \"only ${body[qty]} ${header.sku} in stock, ${exchangeProperty.reservation[qty]} wanted for ${exchangeProperty.reservation[orderId]}\"}.",
+        {"request": "Short stock is a conflict: in reserveStock, when the stock's ${body[qty]} is less than ${variable.reservation[qty]} answer 409 with {\"error\": \"only ${body[qty]} ${header.sku} in stock, ${variable.reservation[qty]} wanted for ${variable.reservation[orderId]}\"}.",
          "check": {"file_regex": "409", "probes": [POST("/api/stock/CAMEL-CAP/reserve", '{"orderId": "ORD-1003", "qty": 1}', 409, "only 0 CAMEL-CAP in stock, 1 wanted for ORD-1003"), POST("/api/stock/CAMEL-MUG/reserve", '{"orderId": "ORD-1001", "qty": 2}', 200)], "errors_ok": True},
          "reference": {OS: os_s5}},
     ]})
@@ -750,11 +750,11 @@ def rest_openapi(op, ind="        "):
             + ind + "      operationId: " + op + "\n" + ind + "      host: \"{{stock.api.url}}\"\n" + ind + "      componentName: http\n")
 oc_s1 = route("stock-check", TIMER_ONE, set_header("sku", "constant", "CAMEL-MUG") + rest_openapi("getStock") + log("Stock of CAMEL-MUG: ${body}"))
 SKU_HDR_LINE = set_header("sku", "simple", "\"${body[sku]}\"", I)
-RESERVE_BODY_LINE = I + "- setBody:\n" + I + "    expression:\n" + I + "      simple:\n" + I + "        expression: '{\"orderId\": \"${exchangeProperty.orderId}\", \"qty\": ${body[qty]}}'\n"
-oc_s2 = route("reserve-order-lines", FILE_ORDERS, UNMARSHAL + set_prop("orderId", "${body[orderId]}") + split(SKU_HDR_LINE + RESERVE_BODY_LINE + rest_openapi("reserveStock", I) + log("Reservation answer: ${body}", I)))
-oc_s3 = route("reserve-order-lines", FILE_ORDERS, UNMARSHAL + set_prop("orderId", "${body[orderId]}") + split(set_prop("sku", "${body[sku]}", I) + SKU_HDR_LINE + RESERVE_BODY_LINE + rest_openapi("reserveStock", I) + UNMARSHAL_IN + log("${exchangeProperty.orderId}: reserved ${body[reserved]} x ${body[sku]}, ${body[remaining]} left on the shelf", I)))
+RESERVE_BODY_LINE = I + "- setBody:\n" + I + "    expression:\n" + I + "      simple:\n" + I + "        expression: '{\"orderId\": \"${variable.orderId}\", \"qty\": ${body[qty]}}'\n"
+oc_s2 = route("reserve-order-lines", FILE_ORDERS, UNMARSHAL + set_var("orderId", "${body[orderId]}") + split(SKU_HDR_LINE + RESERVE_BODY_LINE + rest_openapi("reserveStock", I) + log("Reservation answer: ${body}", I)))
+oc_s3 = route("reserve-order-lines", FILE_ORDERS, UNMARSHAL + set_var("orderId", "${body[orderId]}") + split(set_var("sku", "${body[sku]}", I) + SKU_HDR_LINE + RESERVE_BODY_LINE + rest_openapi("reserveStock", I) + UNMARSHAL_IN + log("${variable.orderId}: reserved ${body[reserved]} x ${body[sku]}, ${body[remaining]} left on the shelf", I)))
 ON_409 = ("- onException:\n    exception:\n      - org.apache.camel.http.base.HttpOperationFailedException\n    handled:\n      constant:\n        expression: \"true\"\n"
-          "    steps:\n      - log:\n          loggingLevel: WARN\n          message: \"${exchangeProperty.orderId}: ${exchangeProperty.sku} not reserved, the stock API answered ${exception.statusCode}: ${exception.responseBody}\"\n\n")
+          "    steps:\n      - log:\n          loggingLevel: WARN\n          message: \"${variable.orderId}: ${variable.sku} not reserved, the stock API answered ${exception.statusCode}: ${exception.responseBody}\"\n\n")
 oc_s4 = ON_409 + oc_s3
 EXAMPLES.append({
     "name": "contracts-openapi-client", "route_file": OC, "props_file": "application.properties", "wait_seconds": 8,
@@ -762,13 +762,13 @@ EXAMPLES.append({
     "peer": {"seed": "_peer-openapi-server", "project": "stepwise-ladder/_peer-openapi-server", "name": "stock-api-peer"},
     "initial": {OC: oc_s1, "application.properties": OC_PROPS},
     "steps": [
-        {"request": "Replace the timer route by a route reserve-order-lines that reads the orders directory (file, noop true, sortBy file:name), unmarshals each order with Jackson, keeps the order id in an exchange property orderId, splits the lines and for each line calls the operation reserveStock of the contract (rest-openapi, specificationUri stock-api.json, host {{stock.api.url}}, componentName http) with the header sku from the line (the path parameter) and the body {\"orderId\": \"${exchangeProperty.orderId}\", \"qty\": ${body[qty]}}; log the answer as \"Reservation answer: ${body}\". The cap is out of stock, so one call fails with a 409 for now.",
+        {"request": "Replace the timer route by a route reserve-order-lines that reads the orders directory (file, noop true, sortBy file:name), unmarshals each order with Jackson, keeps the order id in a variable orderId, splits the lines and for each line calls the operation reserveStock of the contract (rest-openapi, specificationUri stock-api.json, host {{stock.api.url}}, componentName http) with the header sku from the line (the path parameter) and the body {\"orderId\": \"${variable.orderId}\", \"qty\": ${body[qty]}}; log the answer as \"Reservation answer: ${body}\". The cap is out of stock, so one call fails with a 409 for now.",
          "check": {"file_regex": "reserveStock", "file_regex2": "orders", "log_regex": "Reservation answer: \\{\"sku\": \"CAMEL-TSHIRT\", \"reserved\": 2, \"remaining\": 120\\}", "errors_ok": True},
          "reference": {OC: oc_s2}},
-        {"request": "Keep the line's sku in an exchange property sku as well, unmarshal the JSON answer and log \"${exchangeProperty.orderId}: reserved ${body[reserved]} x ${body[sku]}, ${body[remaining]} left on the shelf\".",
+        {"request": "Keep the line's sku in a variable sku as well, unmarshal the JSON answer and log \"${variable.orderId}: reserved ${body[reserved]} x ${body[sku]}, ${body[remaining]} left on the shelf\".",
          "check": {"log_regex": ["ORD-1001: reserved 2 x CAMEL-TSHIRT, 120 left on the shelf", "ORD-1002: reserved 3 x CAMEL-MUG, 42 left on the shelf"], "errors_ok": True},
          "reference": {OC: oc_s3}},
-        {"request": "Handle the conflict: add a top-level onException for org.apache.camel.http.base.HttpOperationFailedException, handled true, that logs at WARN \"${exchangeProperty.orderId}: ${exchangeProperty.sku} not reserved, the stock API answered ${exception.statusCode}: ${exception.responseBody}\", so the cap's 409 is a warning and the rest of the order goes on.",
+        {"request": "Handle the conflict: add a top-level onException for org.apache.camel.http.base.HttpOperationFailedException, handled true, that logs at WARN \"${variable.orderId}: ${variable.sku} not reserved, the stock API answered ${exception.statusCode}: ${exception.responseBody}\", so the cap's 409 is a warning and the rest of the order goes on.",
          "check": {"file_regex": "HttpOperationFailedException", "log_regex": ["ORD-1003: CAMEL-CAP not reserved, the stock API answered 409", "ORD-1003: reserved 2 x CAMEL-MUG, 42 left on the shelf"], "errors_ok": True},
          "reference": {OC: oc_s4}},
     ]})
