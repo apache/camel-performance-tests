@@ -1,0 +1,6 @@
+js threads=8 duration=300s warmupExcluded=60s rate=unbounded jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/js-allfixes-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/js-allfixes.jfr,settings=profile]
+  throughput avg=15006 msg/s sent (49.5% passed the filter), latency p50=543 us p99=1200 us p99.9=2700 us
+  allocation avg=4629.3 MB/s, 323481 bytes/msg
+  gc pauses=1822 (7.6/s), pause total=2538 ms (1.06% of wall time), max pause=2 ms, full gcs=0
+  old gen after gc: first=23.9 MB min=23.9 MB max=24.2 MB last=24.2 MB
+  metaspace: first=38.9 MB last=39.0 MB, classes loaded +0 unloaded +0, cpu avg=68%

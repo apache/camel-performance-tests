@@ -1,0 +1,6 @@
+features-python3 threads=8 duration=180s warmupExcluded=36s rate=100 msg/s jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/features-python3-rate100-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/features-python3-rate100.jfr,settings=profile]
+  throughput avg=100 msg/s sent (49.5% passed the filter), latency p50=24100 us p99=82900 us p99.9=119100 us
+  allocation avg=2110.0 MB/s, 22144732 bytes/msg
+  gc pauses=630 (4.3/s), pause total=1263 ms (0.87% of wall time), max pause=12 ms, full gcs=0
+  old gen after gc: first=51.3 MB min=51.3 MB max=51.7 MB last=51.7 MB
+  metaspace: first=91.1 MB last=91.2 MB, classes loaded +0 unloaded +0, cpu avg=42%

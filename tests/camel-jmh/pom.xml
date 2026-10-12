@@ -32,6 +32,60 @@
     <name>Camel Performance :: Tests :: JMH</name>
     <description>Performs JMH performance tests</description>
 
+    <properties>
+        <!-- override with -Dgroovy-bench-version=6.0.0-RC-1 to benchmark another Groovy runtime -->
+        <groovy-bench-version>5.1.2</groovy-bench-version>
+        <!-- override with -Dcamel-groovy-bench-version=4.23.0-perf-SNAPSHOT to benchmark a locally installed prototype -->
+        <camel-groovy-bench-version>${camel.version}</camel-groovy-bench-version>
+        <!-- override with -Dcamel-quickjs-bench-version=4.23.0-main-SNAPSHOT to benchmark another camel-quickjs build -->
+        <camel-quickjs-bench-version>${camel.version}</camel-quickjs-bench-version>
+        <!-- override with -Dquickjs4j-bench-version=999-SNAPSHOT to benchmark a local quickjs4j build -->
+        <quickjs4j-bench-version>0.1.0</quickjs4j-bench-version>
+        <!-- override to benchmark another camel-support / camel-jactl build (managed below) -->
+        <camel-support-bench-version>${camel.version}</camel-support-bench-version>
+        <camel-jactl-bench-version>${camel.version}</camel-jactl-bench-version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.roastedroot</groupId>
+                <artifactId>quickjs4j</artifactId>
+                <version>${quickjs4j-bench-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.camel</groupId>
+                <artifactId>camel-support</artifactId>
+                <version>${camel-support-bench-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.camel</groupId>
+                <artifactId>camel-jactl</artifactId>
+                <version>${camel-jactl-bench-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy</artifactId>
+                <version>${groovy-bench-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-json</artifactId>
+                <version>${groovy-bench-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-xml</artifactId>
+                <version>${groovy-bench-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-dateutil</artifactId>
+                <version>${groovy-bench-version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
 
         <dependency>
@@ -54,11 +108,6 @@
         </dependency>
         <dependency>
             <groupId>org.apache.camel</groupId>
-            <artifactId>camel-headersmap</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.camel</groupId>
             <artifactId>camel-netty</artifactId>
             <scope>test</scope>
         </dependency>
@@ -70,6 +119,59 @@
         <dependency>
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-disruptor</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-groovy</artifactId>
+            <version>${camel-groovy-bench-version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- other scripting languages compared with groovy -->
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-jactl</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-mvel</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-javascript</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-python3</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-python</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-quickjs</artifactId>
+            <version>${camel-quickjs-bench-version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.roastedroot</groupId>
+            <artifactId>quickjs4j</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-jackson</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-jacksonxml</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -128,6 +230,23 @@
                     </plugin>
                 </plugins>
             </build>
+        </profile>
+            <profile>
+            <!-- -Dquickjs.redline: run camel-quickjs on the native javy plugin (quickjs4j-redline-experimental, PR 209) -->
+            <id>quickjs-redline</id>
+            <activation>
+                <property>
+                    <name>quickjs.redline</name>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.roastedroot</groupId>
+                    <artifactId>quickjs4j-redline-experimental</artifactId>
+                    <version>${quickjs4j-bench-version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
         </profile>
     </profiles>
 

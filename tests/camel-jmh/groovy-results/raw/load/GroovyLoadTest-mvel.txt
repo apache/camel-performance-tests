@@ -1,0 +1,6 @@
+mvel threads=8 duration=300s warmupExcluded=60s rate=unbounded jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/mvel-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/mvel.jfr,settings=profile]
+  throughput avg=3676944 msg/s sent (49.5% passed the filter), latency p50=1 us p99=3 us p99.9=8 us
+  allocation avg=6435.1 MB/s, 1835 bytes/msg
+  gc pauses=2534 (10.5/s), pause total=2404 ms (1.00% of wall time), max pause=2 ms, full gcs=0
+  old gen after gc: first=0.0 MB min=0.0 MB max=0.0 MB last=0.0 MB
+  metaspace: first=18.4 MB last=18.5 MB, classes loaded +6 unloaded +0, cpu avg=78%

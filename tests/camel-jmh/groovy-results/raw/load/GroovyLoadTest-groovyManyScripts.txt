@@ -1,0 +1,6 @@
+groovyManyScripts threads=8 duration=600s warmupExcluded=60s rate=unbounded jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/groovyManyScripts-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/groovyManyScripts.jfr,settings=profile]
+  throughput avg=5010 msg/s sent (49.5% passed the filter), latency p50=21 us p99=5600 us p99.9=36600 us
+  allocation avg=1116.8 MB/s, 233727 bytes/msg
+  gc pauses=1584 (2.9/s), pause total=27959 ms (5.17% of wall time), max pause=70 ms, full gcs=3
+  old gen after gc: first=372.5 MB min=198.9 MB max=738.9 MB last=426.4 MB
+  metaspace: first=62.8 MB last=68.9 MB, classes loaded +1365869 unloaded +1364381, cpu avg=46%

@@ -1,0 +1,6 @@
+groovy threads=8 duration=600s warmupExcluded=60s rate=100000 msg/s jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/groovy-rate100000-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/groovy-rate100000.jfr,settings=profile]
+  throughput avg=99947 msg/s sent (49.5% passed the filter), latency p50=3 us p99=10 us p99.9=29 us
+  allocation avg=529.0 MB/s, 5550 bytes/msg
+  gc pauses=468 (0.9/s), pause total=456 ms (0.08% of wall time), max pause=2 ms, full gcs=0
+  old gen after gc: first=8.8 MB min=8.8 MB max=8.8 MB last=8.8 MB
+  metaspace: first=28.4 MB last=28.6 MB, classes loaded +5 unloaded +0, cpu avg=7%

@@ -1,0 +1,6 @@
+features-quickjs threads=8 duration=180s warmupExcluded=36s rate=100 msg/s jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/features-quickjs-rate100-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/features-quickjs-rate100.jfr,settings=profile]
+  throughput avg=100 msg/s sent (49.5% passed the filter), latency p50=13500 us p99=23000 us p99.9=34400 us
+  allocation avg=10.6 MB/s, 111748 bytes/msg
+  gc pauses=7 (0.0/s), pause total=111 ms (0.08% of wall time), max pause=28 ms, full gcs=0
+  old gen after gc: first=138.4 MB min=138.4 MB max=552.8 MB last=552.8 MB
+  metaspace: first=29.8 MB last=30.0 MB, classes loaded +8 unloaded +0, cpu avg=3%

@@ -1,0 +1,260 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyScriptCacheTest.roundRobinDistinctScripts",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g",
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:+PrintCodeCache",
+            "-XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/followup-cache1000/cache-%p.jfr,settings=profile"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 10,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "distinctScripts" : "100"
+        },
+        "primaryMetric" : {
+            "score" : 5.118315487856601E-7,
+            "scoreError" : 1.3722459397764302E-9,
+            "scoreConfidence" : [
+                5.104593028458837E-7,
+                5.132037947254365E-7
+            ],
+            "scorePercentiles" : {
+                "0.0" : 5.107458952863179E-7,
+                "50.0" : 5.118182585995974E-7,
+                "90.0" : 5.133039559367622E-7,
+                "95.0" : 5.133792455499481E-7,
+                "99.0" : 5.133792455499481E-7,
+                "99.9" : 5.133792455499481E-7,
+                "99.99" : 5.133792455499481E-7,
+                "99.999" : 5.133792455499481E-7,
+                "99.9999" : 5.133792455499481E-7,
+                "100.0" : 5.133792455499481E-7
+            },
+            "scoreUnit" : "s/op",
+            "rawData" : [
+                [
+                    5.116970367406082E-7,
+                    5.107959613337026E-7,
+                    5.126263494180888E-7,
+                    5.133792455499481E-7,
+                    5.119394804585867E-7,
+                    5.123817963488794E-7,
+                    5.108151506834695E-7,
+                    5.125730758394145E-7,
+                    5.113614961975847E-7,
+                    5.107458952863179E-7
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyScriptCacheTest.roundRobinDistinctScripts",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g",
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:+PrintCodeCache",
+            "-XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/followup-cache1000/cache-%p.jfr,settings=profile"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 10,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "distinctScripts" : "1000"
+        },
+        "primaryMetric" : {
+            "score" : 1.095640124913017E-5,
+            "scoreError" : 7.665301882874007E-6,
+            "scoreConfidence" : [
+                3.291099366256164E-6,
+                1.8621703132004176E-5
+            ],
+            "scorePercentiles" : {
+                "0.0" : 3.3673533747675607E-6,
+                "50.0" : 1.1309074250682774E-5,
+                "90.0" : 1.7260347611579336E-5,
+                "95.0" : 1.7336147073282218E-5,
+                "99.0" : 1.7336147073282218E-5,
+                "99.9" : 1.7336147073282218E-5,
+                "99.99" : 1.7336147073282218E-5,
+                "99.999" : 1.7336147073282218E-5,
+                "99.9999" : 1.7336147073282218E-5,
+                "100.0" : 1.7336147073282218E-5
+            },
+            "scoreUnit" : "s/op",
+            "rawData" : [
+                [
+                    3.3673533747675607E-6,
+                    4.179900444773444E-6,
+                    6.870069404676586E-6,
+                    8.786391398422884E-6,
+                    1.0381317129198486E-5,
+                    1.2236831372167064E-5,
+                    1.4268102746289422E-5,
+                    1.5559747091470635E-5,
+                    1.7336147073282218E-5,
+                    1.6578152456253408E-5
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyScriptCacheTest.roundRobinDistinctScripts",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g",
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:+PrintCodeCache",
+            "-XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/followup-cache1000/cache-%p.jfr,settings=profile"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 10,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "distinctScripts" : "1001"
+        },
+        "primaryMetric" : {
+            "score" : 7.303337700226489E-4,
+            "scoreError" : 4.7942078657229536E-5,
+            "scoreConfidence" : [
+                6.823916913654194E-4,
+                7.782758486798785E-4
+            ],
+            "scorePercentiles" : {
+                "0.0" : 6.918717453544391E-4,
+                "50.0" : 7.326534733632763E-4,
+                "90.0" : 7.649963283644753E-4,
+                "95.0" : 7.650151891171994E-4,
+                "99.0" : 7.650151891171994E-4,
+                "99.9" : 7.650151891171994E-4,
+                "99.99" : 7.650151891171994E-4,
+                "99.999" : 7.650151891171994E-4,
+                "99.9999" : 7.650151891171994E-4,
+                "100.0" : 7.650151891171994E-4
+            },
+            "scoreUnit" : "s/op",
+            "rawData" : [
+                [
+                    7.195075496950126E-4,
+                    7.648265815899582E-4,
+                    7.092849238668555E-4,
+                    7.650151891171994E-4,
+                    6.941639330110497E-4,
+                    7.457993970315399E-4,
+                    6.939313800483259E-4,
+                    7.545827545045045E-4,
+                    6.918717453544391E-4,
+                    7.643542460076046E-4
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyScriptCacheTest.roundRobinDistinctScripts",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g",
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:+PrintCodeCache",
+            "-XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/followup-cache1000/cache-%p.jfr,settings=profile"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 10,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "distinctScripts" : "2000"
+        },
+        "primaryMetric" : {
+            "score" : 7.297605534779799E-4,
+            "scoreError" : 3.7690715281320224E-5,
+            "scoreConfidence" : [
+                6.920698381966597E-4,
+                7.674512687593001E-4
+            ],
+            "scorePercentiles" : {
+                "0.0" : 7.036591957894736E-4,
+                "50.0" : 7.222931998237953E-4,
+                "90.0" : 7.731445039021747E-4,
+                "95.0" : 7.740996665383135E-4,
+                "99.0" : 7.740996665383135E-4,
+                "99.9" : 7.740996665383135E-4,
+                "99.99" : 7.740996665383135E-4,
+                "99.999" : 7.740996665383135E-4,
+                "99.9999" : 7.740996665383135E-4,
+                "100.0" : 7.740996665383135E-4
+            },
+            "scoreUnit" : "s/op",
+            "rawData" : [
+                [
+                    7.740996665383135E-4,
+                    7.150858235503379E-4,
+                    7.645480401769259E-4,
+                    7.073883560872625E-4,
+                    7.036591957894736E-4,
+                    7.463053236822568E-4,
+                    7.056014106263194E-4,
+                    7.20266347187388E-4,
+                    7.243200524602026E-4,
+                    7.363313186813186E-4
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

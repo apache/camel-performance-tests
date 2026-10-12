@@ -1,0 +1,6 @@
+groovy threads=8 duration=300s warmupExcluded=60s rate=unbounded jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=tests/camel-jmh/groovy-results/raw/load/groovy-harness2-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=tests/camel-jmh/groovy-results/raw/load/groovy-harness2.jfr,settings=profile]
+  throughput avg=1082956 msg/s sent (49.5% passed the filter), latency p50=3 us p99=102 us p99.9=165 us
+  allocation avg=5781.5 MB/s, 5597 bytes/msg
+  gc pauses=2278 (9.5/s), pause total=2232 ms (0.93% of wall time), max pause=2 ms, full gcs=0
+  old gen after gc: first=26.0 MB min=26.0 MB max=26.1 MB last=26.1 MB
+  metaspace: first=28.5 MB last=28.6 MB, classes loaded +0 unloaded +0, cpu avg=46%

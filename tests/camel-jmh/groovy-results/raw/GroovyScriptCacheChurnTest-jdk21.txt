@@ -1,0 +1,9 @@
+java.vm.version=21.0.10+7-LTS inputArguments=[]
+roundRobin distinct=1000 rounds=3 evaluations=3000 recompilations=0 avg=3.8 us/eval classesLoaded=+0 classesUnloaded=+0 metaspace(MB) before=27.4 peak=27.4 afterGc=27.4
+roundRobin distinct=1001 rounds=3 evaluations=3003 recompilations=3003 avg=753.6 us/eval classesLoaded=+3006 classesUnloaded=+3003 metaspace(MB) before=27.7 peak=36.7 afterGc=27.8
+roundRobin distinct=2000 rounds=3 evaluations=6000 recompilations=6000 avg=489.5 us/eval classesLoaded=+6004 classesUnloaded=+6000 metaspace(MB) before=27.8 peak=42.1 afterGc=27.9
+hotScriptEviction coldScripts=1500 hotScriptEvaluations=1500 hotScriptRecompilations=1 firstRecompilationAfterColdScript=1000
+concurrentMiss threads=8 trials=50 compilationsPerNewScript avg=8.00 max=8 (1 = no duplicate compilation)
+softReferenceClearing round=1 scripts=50 recompiledAfterGc=0 evaluationTime=0.19 ms
+softReferenceClearing round=2 scripts=50 recompiledAfterGc=0 evaluationTime=0.17 ms
+softReferenceClearing round=3 scripts=50 recompiledAfterGc=0 evaluationTime=0.19 ms

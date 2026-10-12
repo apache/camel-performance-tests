@@ -1,0 +1,304 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyExpressionTest.arithmeticJactl",
+        "mode" : "thrpt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 6.9647879829407E7,
+            "scoreError" : 425511.24950839736,
+            "scoreConfidence" : [
+                6.922236857989861E7,
+                7.00733910789154E7
+            ],
+            "scorePercentiles" : {
+                "0.0" : 6.908457008092333E7,
+                "50.0" : 6.965391307238409E7,
+                "90.0" : 7.012488304648614E7,
+                "95.0" : 7.015109163828883E7,
+                "99.0" : 7.015109163828883E7,
+                "99.9" : 7.015109163828883E7,
+                "99.99" : 7.015109163828883E7,
+                "99.999" : 7.015109163828883E7,
+                "99.9999" : 7.015109163828883E7,
+                "100.0" : 7.015109163828883E7
+            },
+            "scoreUnit" : "ops/s",
+            "rawData" : [
+                [
+                    7.015109163828883E7,
+                    6.970499930851206E7,
+                    6.967245621487923E7,
+                    6.988900572026198E7,
+                    6.956684187305686E7
+                ],
+                [
+                    6.954462832690345E7,
+                    6.908457008092333E7,
+                    6.963536992988896E7,
+                    6.97892989974253E7,
+                    6.944053620393011E7
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyExpressionTest.arithmeticJavaExpression",
+        "mode" : "thrpt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 4.324611758109652E8,
+            "scoreError" : 3665268.585916558,
+            "scoreConfidence" : [
+                4.287959072250486E8,
+                4.3612644439688176E8
+            ],
+            "scorePercentiles" : {
+                "0.0" : 4.274578378662493E8,
+                "50.0" : 4.3354029571955997E8,
+                "90.0" : 4.3451598062227273E8,
+                "95.0" : 4.345332454844465E8,
+                "99.0" : 4.345332454844465E8,
+                "99.9" : 4.345332454844465E8,
+                "99.99" : 4.345332454844465E8,
+                "99.999" : 4.345332454844465E8,
+                "99.9999" : 4.345332454844465E8,
+                "100.0" : 4.345332454844465E8
+            },
+            "scoreUnit" : "ops/s",
+            "rawData" : [
+                [
+                    4.274578378662493E8,
+                    4.29421582644787E8,
+                    4.309934568121182E8,
+                    4.324253664628369E8,
+                    4.3309849234410566E8
+                ],
+                [
+                    4.345332454844465E8,
+                    4.3424539936766595E8,
+                    4.343605968627085E8,
+                    4.340936811697196E8,
+                    4.339820990950143E8
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyExpressionTest.concatJactl",
+        "mode" : "thrpt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 3.1731197288555317E7,
+            "scoreError" : 214599.85325156592,
+            "scoreConfidence" : [
+                3.151659743530375E7,
+                3.1945797141806882E7
+            ],
+            "scorePercentiles" : {
+                "0.0" : 3.1531996720051847E7,
+                "50.0" : 3.1732958493350398E7,
+                "90.0" : 3.191239025319191E7,
+                "95.0" : 3.1913620297630608E7,
+                "99.0" : 3.1913620297630608E7,
+                "99.9" : 3.1913620297630608E7,
+                "99.99" : 3.1913620297630608E7,
+                "99.999" : 3.1913620297630608E7,
+                "99.9999" : 3.1913620297630608E7,
+                "100.0" : 3.1913620297630608E7
+            },
+            "scoreUnit" : "ops/s",
+            "rawData" : [
+                [
+                    3.1531996720051847E7,
+                    3.1648040733117912E7,
+                    3.154662361095013E7,
+                    3.1639617622436795E7,
+                    3.166575155574888E7
+                ],
+                [
+                    3.1913620297630608E7,
+                    3.1848743104751315E7,
+                    3.1800165430951916E7,
+                    3.1816093956670128E7,
+                    3.1901319853243645E7
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyExpressionTest.concatJavaExpression",
+        "mode" : "thrpt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 4.752722535082087E7,
+            "scoreError" : 334060.23798328417,
+            "scoreConfidence" : [
+                4.719316511283758E7,
+                4.7861285588804156E7
+            ],
+            "scorePercentiles" : {
+                "0.0" : 4.728235191297295E7,
+                "50.0" : 4.75180383121799E7,
+                "90.0" : 4.776376541043264E7,
+                "95.0" : 4.776572825471453E7,
+                "99.0" : 4.776572825471453E7,
+                "99.9" : 4.776572825471453E7,
+                "99.99" : 4.776572825471453E7,
+                "99.999" : 4.776572825471453E7,
+                "99.9999" : 4.776572825471453E7,
+                "100.0" : 4.776572825471453E7
+            },
+            "scoreUnit" : "ops/s",
+            "rawData" : [
+                [
+                    4.733460593008128E7,
+                    4.7337702014451556E7,
+                    4.728420390360625E7,
+                    4.7360696446998626E7,
+                    4.728235191297295E7
+                ],
+                [
+                    4.774253730043873E7,
+                    4.7675380177361175E7,
+                    4.7746099811895534E7,
+                    4.7742947755687945E7,
+                    4.776572825471453E7
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.apache.camel.itest.jmh.groovy.GroovyExpressionTest.predicateJactl",
+        "mode" : "thrpt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "~/.sdkman/candidates/java/21.0.10-tem/bin/java",
+        "jvmArgs" : [
+            "-Xms2g",
+            "-Xmx2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 5,
+        "warmupTime" : "2 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "2 s",
+        "measurementBatchSize" : 1,
+        "primaryMetric" : {
+            "score" : 5.817537440601458E7,
+            "scoreError" : 2271938.7100567245,
+            "scoreConfidence" : [
+                5.5903435695957854E7,
+                6.04473131160713E7
+            ],
+            "scorePercentiles" : {
+                "0.0" : 5.6602502486381546E7,
+                "50.0" : 5.818264321328145E7,
+                "90.0" : 5.975845554405387E7,
+                "95.0" : 5.977068063741808E7,
+                "99.0" : 5.977068063741808E7,
+                "99.9" : 5.977068063741808E7,
+                "99.99" : 5.977068063741808E7,
+                "99.999" : 5.977068063741808E7,
+                "99.9999" : 5.977068063741808E7,
+                "100.0" : 5.977068063741808E7
+            },
+            "scoreUnit" : "ops/s",
+            "rawData" : [
+                [
+                    5.977068063741808E7,
+                    5.964842970377601E7,
+                    5.949955784317569E7,
+                    5.95436695583668E7,
+                    5.952590911469907E7
+                ],
+                [
+                    5.6699611302209735E7,
+                    5.676034595450905E7,
+                    5.6837308876222566E7,
+                    5.686572858338722E7,
+                    5.6602502486381546E7
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

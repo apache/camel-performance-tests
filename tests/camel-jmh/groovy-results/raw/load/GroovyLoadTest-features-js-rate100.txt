@@ -1,0 +1,6 @@
+features-js threads=8 duration=180s warmupExcluded=36s rate=100 msg/s jvm=21.0.10+7-LTS args=[-Xms1g, -Xmx1g, -Xlog:gc*,safepoint:file=groovy-results/raw/load/features-js-rate100-gc.log:time,uptime,level,tags, -XX:StartFlightRecording=filename=groovy-results/raw/load/features-js-rate100.jfr,settings=profile]
+  throughput avg=100 msg/s sent (49.5% passed the filter), latency p50=10400 us p99=18700 us p99.9=23100 us
+  allocation avg=31.7 MB/s, 332879 bytes/msg
+  gc pauses=7 (0.0/s), pause total=48 ms (0.03% of wall time), max pause=7 ms, full gcs=0
+  old gen after gc: first=18.0 MB min=18.0 MB max=18.0 MB last=18.0 MB
+  metaspace: first=39.2 MB last=39.3 MB, classes loaded +1 unloaded +0, cpu avg=2%

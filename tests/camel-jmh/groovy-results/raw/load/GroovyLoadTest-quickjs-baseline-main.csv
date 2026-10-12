@@ -1,0 +1,5 @@
+seconds,msgPerSec,p50us,p99us,p999us,maxBucketUs,allocMBPerSec,allocBytesPerMsg,heapUsedMB,oldGenUsedMB,oldGenAfterGcMB,gcPauses,gcPauseTotalMs,gcPauseMaxMs,fullGcs,metaspaceMB,classesLoadedTotal,classesUnloadedTotal,processCpuLoad
+5,3177,2300,14800,49700,143400,359.3,118596,496.4,101.4,101.4,7,41.0,8,0,29.5,5356,0,0.91
+10,4885,933,2800,9200,12500,548.7,117772,744.4,355.4,355.4,5,36.0,9,0,29.6,5370,0,0.80
+15,4856,956,2800,8500,19500,545.6,117802,865.3,619.9,619.9,11,45.0,9,0,29.6,5370,0,0.80
+20,4820,1000,3200,9800,14200,541.6,117826,939.0,893.3,893.3,33,86.0,8,0,29.6,5370,0,0.80
