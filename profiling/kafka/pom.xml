@@ -44,7 +44,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
 
-        <quarkus.version>2.11.3.Final</quarkus.version>
+        <quarkus.version>3.36.2</quarkus.version>
         <quarkus.container-image.build>true</quarkus.container-image.build>
         <quarkus.container-image.group>quay.io/oscerd</quarkus.container-image.group>
         <quarkus.container-image.name>${project.artifactId}</quarkus.container-image.name>
