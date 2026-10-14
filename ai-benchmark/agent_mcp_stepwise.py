@@ -154,6 +154,13 @@ def error_key(l):
 
 
 INFRA_TIMEOUT = int(os.environ.get("BENCH_INFRA_TIMEOUT", "300"))    # seconds to wait for `camel infra` services
+# BENCH_FAST=1: wait for what a step checks instead of fixed sleeps (Oct 14 2026: 22 of a run's 55 minutes were
+# fixed sleeps, while dev mode now reloads within ~2 s of a write, CAMEL-25032)
+FAST = os.environ.get("BENCH_FAST") == "1"
+FAST_POLL = float(os.environ.get("BENCH_FAST_POLL", "0.5"))     # seconds between polls of the log
+FAST_GRACE = float(os.environ.get("BENCH_FAST_GRACE", "2"))     # after the checks match: time for errors that follow
+FAST_QUIET = float(os.environ.get("BENCH_FAST_QUIET", "1.5"))   # after a reference write: the log quiet this long
+FAST_NEG_FULL = os.environ.get("BENCH_FAST_NEG_FULL", "1") == "1"  # a step that forbids output waits the full time
 
 
 def infra_start(services):
@@ -219,6 +226,69 @@ def error_snapshot(mcp, name):
     return records, count, reloads, before_msgs
 
 
+def project_file(project, fname):
+    """A file of the project by path, else by name anywhere in it (as score reads the files of a check)."""
+    content = read(os.path.join(project, fname))
+    if not content:
+        for root, dirs, files in os.walk(project):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            if os.path.basename(fname) in files:
+                return read(os.path.join(root, os.path.basename(fname)))
+    return content
+
+
+def wait_for_check(mcp, name, chk, cfg, project, before, reload_at):
+    """BENCH_FAST: instead of sleeping wait_seconds after the reload, poll until what the step checks is there (the
+    log lines after the reload, the files the app writes), then FAST_GRACE seconds for errors that follow. The full
+    wait_seconds when the step has nothing positive to wait for, expects errors, or (FAST_NEG_FULL) forbids output.
+    Only how long to wait changes: score judges the step afterwards exactly as before. Returns the seconds waited."""
+    t0, limit = time.time(), cfg["wait_seconds"]
+    regexes = chk.get("log_regex")
+    regexes = [] if regexes is None else (regexes if isinstance(regexes, list) else [regexes])
+    files = chk.get("files") or {}
+    if (not regexes and not files) or chk.get("min_errors") or (FAST_NEG_FULL and chk.get("log_not_regex")):
+        time.sleep(limit)
+        return limit
+    seen_msgs = before.get("log_records") or set()
+    need = chk.get("min_log", 1)
+
+    def msg(l): return (l.get("message") or l.get("msg") or "") + ("\n" + l["detail"] if l.get("detail") else "")
+
+    def fresh_ok(l):
+        if not isinstance(l, dict) or (l.get("level") or "").upper() not in ("INFO", "WARN"):
+            return False
+        if any(t in msg(l) for t in ("Error reloading routes", "Reload failed", "Failed to create route")):
+            return False
+        if error_key(l) in seen_msgs:
+            return False
+        t = tod(l.get("time") or l.get("timestamp"))
+        return reload_at is None or t is None or t >= reload_at
+    while time.time() - t0 < limit:
+        fresh = [msg(l) for l in log_lines(mcp, name, LOG_WINDOW) if fresh_ok(l)]
+        logs_ok = all(sum(1 for m in fresh if re.search(rx, m, re.S)) >= need for rx in regexes)
+        files_ok = all(re.search(rx, project_file(project, f) or "") for f, rx in files.items())
+        if logs_ok and files_ok:
+            time.sleep(max(0.0, min(FAST_GRACE, limit - (time.time() - t0))))
+            return round(time.time() - t0, 1)
+        time.sleep(FAST_POLL)
+    return round(time.time() - t0, 1)
+
+
+def wait_quiet(mcp, name, quiet, limit):
+    """BENCH_FAST: wait until the log has had no new record for quiet seconds (at most limit): the burst of a reload is
+    over, so the next step's snapshot is taken in a quiet state. Returns the seconds waited."""
+    t0 = time.time(); last = None; since = t0
+    while time.time() - t0 < limit:
+        keys = sorted(error_key(l) for l in log_lines(mcp, name, 20) if isinstance(l, dict))
+        fp = tuple(keys[-3:])
+        if fp != last:
+            last, since = fp, time.time()
+        elif time.time() - since >= quiet:
+            break
+        time.sleep(FAST_POLL)
+    return round(time.time() - t0, 1)
+
+
 def probe(pr):
     """One HTTP request of a step check: {"method", "url", "headers", "body", "expect_status", "body_regex"}; the
     server may still be settling after the reload, so the request is retried a few times until the expected status."""
@@ -269,11 +339,12 @@ def score(step, project, cfg, mcp, name, before):
         result["file_ok"] = False
     if chk.get("props_regex") and not re.search(chk["props_regex"], props):
         result["props_ok"] = False
-    # round 2: on macOS the JDK WatchService polls about every 10 s, so a dev-mode reload lands up to 10 s after the
-    # write; wait for a reload record newer than the step's snapshot (up to 25 s), then the example's own wait
+    # wait for a reload record newer than the step's snapshot (up to 24 s), then the example's own wait (round 2 waited
+    # for the JDK WatchService, which polled about every 10 s on macOS; since CAMEL-25032 dev mode scans every 2 s)
     seen_reloads = before.get("reload_records") or set()
     reload_at = None
-    for _ in range(12):
+    polls, gap = (int(24 / FAST_POLL), FAST_POLL) if FAST else (12, 2)
+    for _ in range(polls):
         fresh_reloads = [l for l in log_lines(mcp, name, LOG_WINDOW)
                          if isinstance(l, dict) and is_reload(l) and reload_key(l) not in seen_reloads]
         if fresh_reloads:
@@ -283,12 +354,15 @@ def score(step, project, cfg, mcp, name, before):
             times = [t for t in (tod(l.get("time") or l.get("timestamp")) for l in fresh_reloads) if t is not None]
             reload_at = max(times) if times else None
             break
-        time.sleep(2)
+        time.sleep(gap)
     # CAMEL-24886: probes are the README's curl: an HTTP request after the reload, its status and body checked
     result["probes"] = [probe(pr) for pr in (chk.get("probes") or [])]
     if any(not pr["ok"] for pr in result["probes"]):
         result["log_ok"] = False
-    time.sleep(cfg["wait_seconds"])
+    if FAST:
+        result["waited"] = wait_for_check(mcp, name, chk, cfg, project, before, reload_at)
+    else:
+        time.sleep(cfg["wait_seconds"])
     # (after the wait: a file the app writes on the reload, an outbox or an archive, exists only then)
     # round 2: other files of the project (a Java bean, beans.yaml, a stylesheet, a dropped data file)
     for fname, rx in (chk.get("files") or {}).items():
@@ -507,17 +581,20 @@ def main():
                             args["nameOrPid"] = name
                         if fn["name"] in ("camel_write_file", "camel_edit_file"):
                             writes += 1
+                        t_call = time.time()
                         try:
                             out = mcp.call(fn["name"], args)
                         except Exception as e:
                             out = "ERROR: " + str(e)
+                        # how long the tool took (a write waits for the dev-mode reload: CAMEL-25661)
+                        ms = round((time.time() - t_call) * 1000)
                         if fn["name"] in ("camel_write_file", "camel_edit_file") and ('"invalid"' in out
                                 or '"not-found"' in out or '"ambiguous"' in out or out.startswith("ERROR")):
                             refused += 1
                         elif fn["name"] in ("camel_write_file", "camel_edit_file"):
                             before["last_write"] = error_snapshot(mcp, name)
                         out = out[:TOOL_RESULT_CAP]
-                        trace.write(json.dumps({"tool": fn["name"], "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800]}) + "\n"); trace.flush()
+                        trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800]}) + "\n"); trace.flush()
                         messages.append({"role": "tool", "content": out, "tool_name": fn["name"]})
                     continue
                 answer = msg.get("content") or ""
@@ -551,15 +628,26 @@ def main():
                         other = os.path.join(root, os.path.basename(fname))
                         if os.path.basename(fname) in files and os.path.abspath(other) != os.path.abspath(os.path.join(project, fname)):
                             os.remove(other)
-                apply_reference(project, cfg, step["reference"], mcp, name)
-                # the checkpoint write reloads the app too (on macOS up to 10 s later): wait for that reload and let
-                # its consumers settle, so the next step's error and log snapshot is taken in a quiet state
-                seen = error_snapshot(mcp, name)[2]
-                for _ in range(12):
-                    time.sleep(2)
-                    if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
-                        break
-                time.sleep(6)
+                if FAST:
+                    # files that already equal the reference are not written again: no reload, nothing to wait for
+                    if any(read(os.path.join(project, f)) != c for f, c in step["reference"].items()):
+                        seen = error_snapshot(mcp, name)[2]
+                        apply_reference(project, cfg, step["reference"], mcp, name)
+                        for _ in range(int(24 / FAST_POLL)):
+                            time.sleep(FAST_POLL)
+                            if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
+                                break
+                        res["settled"] = wait_quiet(mcp, name, FAST_QUIET, 6)
+                else:
+                    apply_reference(project, cfg, step["reference"], mcp, name)
+                    # the checkpoint write reloads the app too: wait for that reload and let its consumers settle, so
+                    # the next step's error and log snapshot is taken in a quiet state
+                    seen = error_snapshot(mcp, name)[2]
+                    for _ in range(12):
+                        time.sleep(2)
+                        if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
+                            break
+                    time.sleep(6)
                 if not res["ok"]:
                     messages.append({"role": "user", "content": "I fixed that step myself; the files now contain the correct version. Continue with the next request."})
             json.dump(results, open(os.path.join(OUT, "results.json"), "w"), indent=1)
