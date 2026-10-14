@@ -161,6 +161,9 @@ FAST_POLL = float(os.environ.get("BENCH_FAST_POLL", "0.5"))     # seconds betwee
 FAST_GRACE = float(os.environ.get("BENCH_FAST_GRACE", "2"))     # after the checks match: time for errors that follow
 FAST_QUIET = float(os.environ.get("BENCH_FAST_QUIET", "1.5"))   # after a reference write: the log quiet this long
 FAST_NEG_FULL = os.environ.get("BENCH_FAST_NEG_FULL", "1") == "1"  # a step that forbids output waits the full time
+# BENCH_SERVER_INSTRUCTIONS=1: append the instructions the MCP server sends in its initialize answer (CAMEL-25646) to
+# the system prompt, as agent hosts such as Claude Code show them to the model
+SERVER_INSTRUCTIONS = os.environ.get("BENCH_SERVER_INSTRUCTIONS") == "1"
 
 
 def infra_start(services):
@@ -422,11 +425,29 @@ def score(step, project, cfg, mcp, name, before):
             result["log_ok"] = False
     # round 2: errors are counted per step (the log window and the error file keep an earlier step's stack traces)
     seen = before.get("error_records") or set()
-    result["errors"] = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in seen)
+    began = before.get("began")
+
+    def in_step(l):
+        # BENCH_FAST: an error logged before the step began is the step before's, however late it came in
+        if not FAST or began is None:
+            return True
+        t = tod(l.get("time") or l.get("timestamp"))
+        b = tod(time.strftime("%H:%M:%S", time.localtime(began)))
+        if t is None or b is None:
+            return True
+        return t + (86400 if t < b - 43200 else 0) >= b - 0.5
+    result["errors"] = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in seen
+                           and in_step(l))
     data, _ = jcall(mcp, "camel_get_errors", {"name": name})
     if isinstance(data, dict):
         errs = data.get("errors", []) or []
-        result["errors"] += max(0, len(errs) - before.get("error_count", 0))
+        if FAST and began is not None:
+            # the error records carry their time (epoch millis): only the ones at or after the step began
+            new = errs[before.get("error_count", 0):]
+            result["errors"] += sum(1 for e in new if not isinstance(e, dict) or not isinstance(e.get("timestamp"), (int, float))
+                                    or e["timestamp"] >= (began - 0.5) * 1000)
+        else:
+            result["errors"] += max(0, len(errs) - before.get("error_count", 0))
         # what they were, not just how many: a step that fails on errors alone cannot be judged from a count
         result["error_detail"] = [str(e)[:300] for e in errs[before.get("error_count", 0):]][:5]
     diff = list(difflib.unified_diff(before["route"].splitlines(), route.splitlines(), lineterm="", n=0))
@@ -465,7 +486,8 @@ def main():
         project = os.path.join(HERE, project)
     os.makedirs(OUT, exist_ok=True)
     log = open(os.path.join(OUT, "run.log"), "a")
-    mcp = McpClient(MCP_URL); mcp.initialize(); all_tools = mcp.list_tools()
+    mcp = McpClient(MCP_URL); init = mcp.initialize(); all_tools = mcp.list_tools()
+    instructions = ((init or {}).get("result") or {}).get("instructions") if isinstance(init, dict) else None
     tools = to_ollama_tools(all_tools, BARE_TOOLS if BARE else SHARED + EXTRA)
     print(f"tools: {[t['function']['name'] for t in tools]}", file=log, flush=True)
 
@@ -517,6 +539,10 @@ def main():
         time.sleep(6)
 
     base_system = SYSTEM.replace("{directory}", project).replace("{name}", name)
+    if SERVER_INSTRUCTIONS:
+        if instructions:
+            base_system += "\nThe Camel MCP server's own instructions:\n" + instructions.strip() + "\n"
+        print(f"server instructions: {len(instructions or '')} chars", file=log, flush=True)
     if BARE:
         # the guidelines about tools it does not have would only confuse it
         base_system = "\n".join(l for l in base_system.splitlines()
@@ -541,6 +567,7 @@ def main():
             before = {"route": read(os.path.join(project, cfg["route_file"])), "props": read(os.path.join(project, cfg.get("props_file", "application.properties")))}
             before["error_records"], before["error_count"], before["reload_records"], before["log_records"] \
                 = error_snapshot(mcp, name)
+            before["began"] = time.time()
             trace = open(os.path.join(OUT, f"step{sid}.trace.jsonl"), "w")
             messages.append({"role": "user", "content": step["request"]})
             calls = 0; tokens = 0; t0 = time.time(); writes = 0; refused = 0; answer = ""

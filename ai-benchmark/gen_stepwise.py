@@ -14,6 +14,9 @@ import datetime, json, os, shutil, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STEPS_DIR = os.path.join(HERE, "steps-ladder")
+# CAMEL-25670: dev mode with --source-dir reloads the routes for every file they write into the project's own folders
+# (connect-file-processing reloaded every 2 s, r13); camel.jbang.dataDir leaves those folders out (Camel 4.24)
+DATA_DIR = "camel.jbang.dataDir="
 PROJECTS = os.path.join(HERE, "stepwise-ladder")
 SEEDS = os.path.join(HERE, "seed")
 
@@ -396,7 +399,7 @@ csv_s5 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR
 EXAMPLES.append({
     "name": "transform-csv-to-json", "route_file": CSV, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "transform-csv-to-json",
-    "initial": {CSV: csv_s1, "application.properties": ""},
+    "initial": {CSV: csv_s1, "application.properties": DATA_DIR + "inbox,outbox\n"},
     "steps": [
         {"request": "Unmarshal the CSV with the csv data format so the body becomes a list of maps keyed by the header row (useMaps and captureHeaderRecord), and log \"Invoices as a list of maps: ${body}\".",
          "check": {"file_regex": "csv", "log_regex": "Invoices as a list of maps: \\[\\{invoiceId=INV-2001"},
@@ -542,7 +545,7 @@ eh_s4 = DLC + ON_DECLINED + CHECKOUT + "\n" + provider(FLAKY + DECLINED, True) +
 EXAMPLES.append({
     "name": "fail-well-error-handling", "route_file": EH, "props_file": "application.properties", "wait_seconds": 12,
     "seed": "fail-well-error-handling",
-    "initial": {EH: eh_s1, "application.properties": ""},
+    "initial": {EH: eh_s1, "application.properties": DATA_DIR + "orders,parked\n"},
     "steps": [
         {"request": "Add a top-level errorHandler with a deadLetterChannel to direct:parked (maximumRedeliveries 2, redeliveryDelay 1000, retryAttemptedLogLevel WARN) and a route parked from direct:parked that logs \"Order ${body[orderId]} parked for manual review: ${exception.message}\", so the declined order is parked after the retries instead of dropped with a stack trace.",
          "check": {"file_regex": "deadLetterChannel", "log_regex": ["Order ORD-1003 parked for manual review: card declined", "Payment for ORD-1001 charged, 2 line\\(s\\)"], "errors_ok": True},
@@ -578,7 +581,7 @@ fp_s5 = ON_INVALID + COURIER + "\n" + route("invoices", INBOX_JSON_FAILED, UNMAR
 EXAMPLES.append({
     "name": "connect-file-processing", "route_file": FP, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "connect-file-processing",
-    "initial": {FP: fp_s1, "application.properties": ""},
+    "initial": {FP: fp_s1, "application.properties": DATA_DIR + "samples,inbox,archive\n"},
     "steps": [
         {"request": "The invoices route must only take the JSON files: include .*\\.json, and move each processed file to the done directory instead of the default .camel directory. The driver's note note-2005.txt must stay untouched in inbox.",
          "check": {"file_regex": "move: done", "file_regex2": "include", "log_regex": "Received invoice-2004.json", "log_not_regex": "Received note-2005", "files": {"inbox/note-2005.txt": "Handwritten note", "done/invoice-2001.json": "INV-2001"}},
