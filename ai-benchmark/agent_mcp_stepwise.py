@@ -11,7 +11,7 @@ errors via camel_get_errors, diff size, reference checkpoint after each step.
 
 Env: BENCH_MODEL (ollama model), MCP_URL (default http://127.0.0.1:9090/mcp), BENCH_TAG (results folder name),
 BENCH_STEPS (the steps file, default steps.json),
-BENCH_TOOL_CALLS (max tool calls per step, default 12).
+BENCH_TOOL_CALLS (max tool calls per step, default 25; 20 until Oct 15 2026).
 """
 import difflib, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,7 +23,8 @@ MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:9090/mcp")
 HERE = os.path.dirname(os.path.abspath(__file__))
 TAG = os.environ.get("BENCH_TAG", "mcp-" + MODEL.replace(":", "_").replace("/", "_"))
 OUT = os.path.join(HERE, "stepwise", TAG)
-MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "20"))
+# 25 since Oct 15 2026 (20 before, r12-r14): of the steps that hit 20, 38% were still writing in their last 5 calls
+MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "25"))
 # the conversation grows over an example's steps (logs with stack traces are the bulk); at 32k a long example ran out
 # of context and the model stopped after a few words without a tool call (round 3, circuit-breaker steps 2-3)
 NUM_CTX = int(os.environ.get("BENCH_NUM_CTX", "65536"))
