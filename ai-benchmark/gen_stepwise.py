@@ -300,7 +300,7 @@ EXAMPLES.append({
          "check": {"file_regex": "multicast", "log_regex": ["Warehouse: pick 2 line\\(s\\) for ORD-1001", "Invoicing: bill customer C-482 for ORD-1001"], "log_not_regex": "(Warehouse|Invoicing).*ORD-1003"},
          "reference": {FM: fm_s3}},
         {"request": "Add parallelProcessing: true to the multicast so both departments get the order at the same moment.",
-         "check": {"file_regex": "parallelProcessing:\\s*true", "log_regex": ["Warehouse: pick 2 line\\(s\\) for ORD-1001", "Invoicing: bill customer C-482 for ORD-1001"]},
+         "check": {"file_regex": "parallelProcessing:\\s*[\"']?true", "log_regex": ["Warehouse: pick 2 line\\(s\\) for ORD-1001", "Invoicing: bill customer C-482 for ORD-1001"]},
          "reference": {FM: fm_s4}},
     ]})
 
@@ -584,7 +584,7 @@ EXAMPLES.append({
     "initial": {FP: fp_s1, "application.properties": DATA_DIR + "samples,inbox,archive\n"},
     "steps": [
         {"request": "The invoices route must only take the JSON files: include .*\\.json, and move each processed file to the done directory instead of the default .camel directory. The driver's note note-2005.txt must stay untouched in inbox.",
-         "check": {"file_regex": "move: done", "file_regex2": "include", "log_regex": "Received invoice-2004.json", "log_not_regex": "Received note-2005", "files": {"inbox/note-2005.txt": "Handwritten note", "done/invoice-2001.json": "INV-2001"}},
+         "check": {"file_regex": "move: [\"']?done", "file_regex2": "include", "log_regex": "Received invoice-2004.json", "log_not_regex": "Received note-2005", "files": {"inbox/note-2005.txt": "Handwritten note", "done/invoice-2001.json": "INV-2001"}},
          "reference": {FP: fp_s2}},
         {"request": "Unmarshal each invoice from JSON with Jackson and log \"Invoice ${body[invoiceId]} for ${body[orderId]}: ${body[amount]} EUR\" instead of the file name.",
          "check": {"file_regex": "unmarshal", "log_regex": ["Invoice INV-2001 for ORD-1001: 49.4 EUR", "Invoice INV-2003 for ORD-1003: -5.0 EUR"]},
@@ -675,7 +675,7 @@ EXAMPLES.append({
          "check": {"file_regex": "toD", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock", "ORD-1003: CAMEL-CAP x 1, 0 in stock"]},
          "reference": {HC: hc_s3}},
         {"request": "Decide per line: add throwExceptionOnFailure=false to the HTTP call so a 404 does not throw, then a choice: when the header CamelHttpResponseCode is not 200 log \"${variable.orderId}: ${body[error]} (HTTP ${header.CamelHttpResponseCode})\", when ${body[qty]} >= ${variable.needed} log \"${variable.orderId}: ${variable.sku} x ${variable.needed}, ${body[qty]} in stock, ok\", otherwise log \"${variable.orderId}: ${variable.sku} x ${variable.needed}, only ${body[qty]} in stock, back-order\".",
-         "check": {"file_regex": "throwExceptionOnFailure[=:] *false", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock, ok", "ORD-1003: CAMEL-CAP x 1, only 0 in stock, back-order"]},
+         "check": {"file_regex": "throwExceptionOnFailure[=:] *[\"']?false", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock, ok", "ORD-1003: CAMEL-CAP x 1, only 0 in stock, back-order"]},
          "reference": {HC: hc_s4}},
     ]})
 

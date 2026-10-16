@@ -527,7 +527,10 @@ def main():
         # them); the MCP tools find the integration by name
         name = os.path.basename(project)
         run_out = open(os.path.join(OUT, "camel-run.out"), "w")
-        proc = subprocess.Popen(["camel", "run", "--source-dir=" + project, "--dev", "--name=" + name, "--logging-color=false"],
+        # the scan interval camel_run uses since CAMEL-25661; the ? makes it optional, so a Camel without the option
+        # logs a WARN and starts
+        proc = subprocess.Popen(["camel", "run", "--source-dir=" + project, "--dev", "--name=" + name, "--logging-color=false",
+                                 "--prop=camel.main.?routesReloadInterval=500"],
                                 stdout=run_out, stderr=subprocess.STDOUT, cwd=project)
         for _ in range(60):
             time.sleep(1)
