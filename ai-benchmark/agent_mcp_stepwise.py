@@ -40,6 +40,10 @@ TOOL_GROUPS = os.environ.get("BENCH_TOOL_GROUPS") == "1"
 # invalid YAML is still refused); what the model knows by itself
 BARE = os.environ.get("BENCH_BARE") == "1"
 TOOL_RESULT_CAP = 6000
+# camel_catalog_doc answers are cut later: at 6000 the model never saw most of a component's options (file: include,
+# move and sortBy sit past 11000 characters), and r14b asked for all of them 75 times to get the same first 6000. 16000
+# is the longest answer camel_catalog_doc gives since CAMEL-25541. BENCH_CATALOG_CAP=6000 gives the r1-r14 behaviour
+CATALOG_RESULT_CAP = int(os.environ.get("BENCH_CATALOG_CAP", "16000"))
 
 SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "camel_validate_source", "camel_get_files", "camel_write_file",
           "camel_edit_file",
@@ -627,8 +631,9 @@ def main():
                             refused += 1
                         elif fn["name"] in ("camel_write_file", "camel_edit_file"):
                             before["last_write"] = error_snapshot(mcp, name)
-                        out = out[:TOOL_RESULT_CAP]
-                        trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800]}) + "\n"); trace.flush()
+                        chars = len(out)
+                        out = out[:CATALOG_RESULT_CAP if fn["name"] == "camel_catalog_doc" else TOOL_RESULT_CAP]
+                        trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800], "chars": chars, "shown": len(out)}) + "\n"); trace.flush()
                         messages.append({"role": "tool", "content": out, "tool_name": fn["name"]})
                     continue
                 answer = msg.get("content") or ""
