@@ -3,7 +3,12 @@
 # Set CAMEL_MCP_JAR to run a locally built camel-jbang-mcp runner jar instead of the CLI plugin.
 cd "$(dirname "$0")"
 PORT="${MCP_PORT:-9090}"
-pkill -f "camel-jbang-mcp.*runner.jar" 2>/dev/null; pkill -f "camel mcp --http" 2>/dev/null; sleep 1
+# only the server on this port: Claude Code sessions run camel-jbang-mcp runner jars of their own (stdio MCP servers).
+# The wrapper's tail goes too, or every restart leaves an orphaned tail behind
+for w in $(pgrep -f "^sh -c tail -f /dev/null \| .*(quarkus.http.port=$PORT |camel mcp --http --port=$PORT )"); do
+  pkill -P $w 2>/dev/null; kill $w 2>/dev/null
+done
+pkill -f "quarkus.http.port=$PORT .*camel-jbang-mcp" 2>/dev/null; pkill -f "camel mcp --http --port=$PORT" 2>/dev/null; sleep 1
 if [[ -n "${CAMEL_MCP_JAR:-}" ]]; then
   nohup sh -c "tail -f /dev/null | java -Dquarkus.http.host-enabled=true -Dquarkus.http.host=0.0.0.0 -Dquarkus.http.port=$PORT -Dquarkus.log.level=WARN -jar $CAMEL_MCP_JAR" > mcp-server.log 2>&1 &
 else

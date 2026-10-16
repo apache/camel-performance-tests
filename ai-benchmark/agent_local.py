@@ -182,7 +182,10 @@ def infra_start(services):
             m = re.search(r"\{.*\}", out, re.S)
             if m:
                 try:
-                    data[svc] = json.loads(m.group(0)); break
+                    d = json.loads(m.group(0))
+                    # since CAMEL-25392 an error is JSON too: {"status":"error","code":3,...} until the service is up
+                    if d.get("status") != "error":
+                        data[svc] = d; break
                 except json.JSONDecodeError:
                     pass
             time.sleep(5)
