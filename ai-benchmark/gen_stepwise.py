@@ -837,6 +837,67 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- connect-service/jms-request-reply (Artemis started with camel infra)
+# Claus, Oct 18: "we need traditional messaging also". The start has no broker connection: connecting to Artemis is
+# the first request (in September the model reached for amqp with inline credentials there).
+JR = "jms-request-reply.camel.yaml"
+JR_CF = ("# The broker started by: camel infra run artemis\n"
+         "camel.beans.artemisCF = #class:org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory\n"
+         "camel.beans.artemisCF.brokerURL = tcp://localhost:61616\ncamel.beans.artemisCF.user = artemis\n"
+         "camel.beans.artemisCF.password = artemis\ncamel.component.jms.connection-factory = #bean:artemisCF\n")
+def jms_from(kind, name):
+    return "      uri: jms\n      parameters:\n        destinationType: " + kind + "\n        destinationName: " + name + "\n"
+def jms_to(kind, name, ind="        ", more=""):
+    return (ind + "- to:\n" + ind + "    uri: jms\n" + ind + "    parameters:\n" + ind + "      destinationType: " + kind + "\n"
+            + ind + "      destinationName: " + name + "\n" + more)
+JR_HEADERS = set_header("orderId", "jsonpath", "\"$.orderId\"") + set_header("customer", "jsonpath", "\"$.customer\"")
+def jr_intake(queue):
+    return route("order-intake", FILE_ORDERS, JR_HEADERS + (jms_to("queue", "orders") + log("Order ${header.orderId} put on the queue")
+                                                           if queue else log("Order ${header.orderId} received")))
+JR_ASK = (jms_to("queue", "stock", more="              exchangePattern: InOut\n            variableReceive: answer\n")
+          + log("Stock service answered for ${header.orderId}: ${variable.answer}"))
+JR_FAIL = ("        - filter:\n            expression:\n              simple:\n                expression: \"${variable.answer} != 'reserved'\"\n"
+           "            steps:\n              - throwException:\n                  exceptionType: java.lang.IllegalStateException\n"
+           "                  message: \"${variable.answer} for ${header.orderId}\"\n")
+JR_DLC = ("    errorHandler:\n      deadLetterChannel:\n        deadLetterUri: \"jms:queue:orders.dead\"\n        useOriginalMessage: true\n"
+          "        redeliveryPolicy:\n          maximumRedeliveries: 3\n          redeliveryDelay: 1000\n")
+def jr_reserve(ask, dlc, topic):
+    steps = (log("Reserving ${header.orderId} for customer ${header.customer}") + (JR_ASK if ask else "")
+             + (JR_FAIL if dlc else "") + (jms_to("topic", "orders.reserved") if topic else ""))
+    return "- route:\n    id: reserve-order\n" + (JR_DLC if dlc else "") + "    from:\n" + jms_from("queue", "orders") + "      steps:\n" + steps
+JR_STOCK = route("stock-service", jms_from("queue", "stock"),
+                 UNMARSHAL + "        - setVariable:\n            name: order\n            expression:\n              simple:\n                expression: \"${body}\"\n"
+                 + "        - setBody:\n            expression:\n              constant:\n                expression: \"resource:file:stock.json\"\n"
+                 + UNMARSHAL + "        - setBody:\n            expression:\n              groovy:\n                expression: \"def missing = variables.order.lines.find "
+                 "{ line -> (body.find { it.sku == line.sku }?.qty ?: 0) < line.qty }; missing ? 'not enough ' + missing.sku : 'reserved'\"\n")
+JR_DEAD = route("dead-orders", jms_from("queue", "orders.dead"), log("Dead order ${header.orderId}"))
+JR_TOPIC = (route("shipping", jms_from("topic", "orders.reserved"), log("Shipping ${header.orderId}")) + "\n"
+            + route("invoicing", jms_from("topic", "orders.reserved"), log("Invoicing ${header.orderId}")))
+jr_s1 = jr_intake(False)
+jr_s2 = jr_intake(True) + "\n" + jr_reserve(False, False, False)
+jr_s3 = jr_intake(True) + "\n" + jr_reserve(True, False, False) + "\n" + JR_STOCK
+jr_s4 = jr_intake(True) + "\n" + jr_reserve(True, True, False) + "\n" + JR_STOCK + "\n" + JR_DEAD
+jr_s5 = jr_intake(True) + "\n" + jr_reserve(True, True, True) + "\n" + JR_STOCK + "\n" + JR_DEAD + "\n" + JR_TOPIC
+EXAMPLES.append({
+    "name": "connect-service-jms-request-reply", "route_file": JR, "props_file": "application.properties", "wait_seconds": 15,
+    "seed": "connect-service-jms-request-reply", "infra": ["artemis"], "steps_dir": NEW,
+    "initial": {JR: jr_s1, "application.properties": "# application properties\n"},
+    "steps": [
+        {"request": "Connect to the ActiveMQ Artemis broker that camel infra started (tcp://localhost:61616, user artemis, password artemis) and send each order to the queue orders with the jms component, logging \"Order ${header.orderId} put on the queue\" instead of received. Add a route reserve-order that takes the orders off the queue and logs \"Reserving ${header.orderId} for customer ${header.customer}\".",
+         "check": {"log_regex": ["Order ORD-1001 put on the queue", "Reserving ORD-1001 for customer C-482"]},
+         "reference": {JR: jr_s2, "application.properties": JR_CF}},
+        {"request": "Add a route stock-service on the queue stock that answers whether an order (the JSON body) can be reserved: \"reserved\" when stock.json has enough of every line, otherwise \"not enough <sku>\" for the first line that is short. In reserve-order, ask the stock service with request-reply, keep the order as the body, and log \"Stock service answered for ${header.orderId}: <the answer>\".",
+         "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"]},
+         "reference": {JR: jr_s3}},
+        {"request": "An order the stock service cannot reserve must fail: redeliver it 3 times, one second apart, and then move the original order to the queue orders.dead, where a route dead-orders logs \"Dead order ${header.orderId}\".",
+         "check": {"file_regex": "maximumRedeliveries", "log_regex": "Dead order ORD-1003", "errors_ok": True},
+         "reference": {JR: jr_s4}},
+        {"request": "Publish each reserved order to the topic orders.reserved, and add two routes, shipping and invoicing, that subscribe to it and log \"Shipping ${header.orderId}\" and \"Invoicing ${header.orderId}\".",
+         "check": {"log_regex": ["Shipping ORD-1001", "Invoicing ORD-1001"], "log_not_regex": "Shipping ORD-1003", "errors_ok": True},
+         "reference": {JR: jr_s5}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
