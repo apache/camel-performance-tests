@@ -395,18 +395,10 @@ def score(step, project, cfg, mcp, name, before):
     # matched the failure itself; those records are not what the route logged (Kamelet side check, kb-1)
     def reload_failure(l): return any(t in msg(l) for t in ("Error reloading routes", "Reload failed", "Failed to create route"))
     recent = [l for l in lines if isinstance(l, dict) and lvl(l) in ("INFO", "WARN") and not reload_failure(l)]
-    msgs = [msg(l) for l in recent]
-    # round 2: log_regex may be a list (all must match), or absent (a step with nothing to see in the log)
-    regexes = chk.get("log_regex")
-    regexes = [] if regexes is None else (regexes if isinstance(regexes, list) else [regexes])
-    matched = []
-    for rx in regexes:
-        found = [m for m in msgs if re.search(rx, m, re.S)]
-        if len(found) < chk.get("min_log", 1):
-            result["log_ok"] = False
-        matched = found if not matched else matched
-    # only what this step produced: the window spans the step before, whose route may legitimately have logged
-    # what this step forbids (a circuit breaker step forbids ConnectException, which the step before it provokes)
+    # only what this step produced: the window spans the step before, whose route may legitimately have logged what
+    # this step forbids (a circuit breaker step forbids ConnectException, which the step before it provokes), and what
+    # this step asks for: r17 transform-groovy step 3 passed 3 times on the line step 2 had logged, with a route that
+    # rejected both orders (the wait already looked only at these records; the score now does too)
     seen_msgs = before.get("log_records") or set()
 
     def after_reload(l):
@@ -414,11 +406,21 @@ def score(step, project, cfg, mcp, name, before):
             return True
         t = tod(l.get("time") or l.get("timestamp"))
         return t is None or t >= reload_at
-    fresh = [msg(l) for l in recent if error_key(l) not in seen_msgs and after_reload(l)]
+    fresh_recs = [l for l in recent if error_key(l) not in seen_msgs and after_reload(l)]
+    fresh = [msg(l) for l in fresh_recs]
+    # round 2: log_regex may be a list (all must match), or absent (a step with nothing to see in the log)
+    regexes = chk.get("log_regex")
+    regexes = [] if regexes is None else (regexes if isinstance(regexes, list) else [regexes])
+    matched = []
+    for rx in regexes:
+        found = [m for m in fresh if re.search(rx, m, re.S)]
+        if len(found) < chk.get("min_log", 1):
+            result["log_ok"] = False
+        matched = found if not matched else matched
     if chk.get("log_not_regex") and any(re.search(chk["log_not_regex"], m, re.S) for m in fresh):
         result["log_ok"] = False
     if chk.get("interval_min") and len(matched) >= 2:
-        ts = [l.get("time") or l.get("timestamp") or "" for l in recent if re.search(regexes[0], msg(l), re.S)][:2]
+        ts = [l.get("time") or l.get("timestamp") or "" for l in fresh_recs if re.search(regexes[0], msg(l), re.S)][:2]
         try:
             if abs(tod(ts[0]) - tod(ts[1])) < chk["interval_min"]:
                 result["log_ok"] = False
@@ -483,7 +485,7 @@ def score(step, project, cfg, mcp, name, before):
     if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
         lastwrite_fine = False
     result["ok_lastwrite"] = result["ok_final"] and lastwrite_fine
-    result["log_sample"] = msgs[:5]
+    result["log_sample"] = [msg(l) for l in recent][:5]
     return result, route, props
 
 
