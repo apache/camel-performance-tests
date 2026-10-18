@@ -955,6 +955,49 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- route/dynamic-routing (recipient list, failover load balancer, throttle)
+DR = "dynamic-routing.camel.yaml"
+DR_INCOMING = (UNMARSHAL + log("Order ${body[orderId]} for ${body[country]}, ${body[status]}"))
+DR_RECIPIENTS = ("        - recipientList:\n            expression:\n              simple:\n"
+                 "                expression: \"direct:warehouse-${body[country]},direct:billing-${body[status]}\"\n")
+def dr_warehouse(country, throttle=False):
+    steps = ("        - throttle:\n            expression:\n              constant:\n                expression: \"1\"\n"
+             "            timePeriodMillis: 1000\n" if throttle else "") + log("Warehouse " + country + " picks ${body[orderId]}")
+    return route("warehouse-" + country, DIRECT("warehouse-" + country), steps)
+DR_FAILOVER = ("        - loadBalance:\n            failoverLoadBalancer:\n              inheritErrorHandler: false\n"
+               "              exception:\n                - java.lang.IllegalStateException\n            steps:\n"
+               "              - to:\n                  uri: direct:invoice-primary\n              - to:\n                  uri: direct:invoice-backup\n")
+DR_PENDING = route("billing-pending", DIRECT("billing-pending"), log("No invoice for ${body[orderId]} until it is paid"))
+DR_PRIMARY = ("- route:\n    id: invoice-primary\n    errorHandler:\n      noErrorHandler: {}\n    from:\n" + DIRECT("invoice-primary")
+              + "      steps:\n        - throwException:\n            exceptionType: java.lang.IllegalStateException\n"
+              "            message: \"The invoice service is down\"\n")
+DR_BACKUP = route("invoice-backup", DIRECT("invoice-backup"), log("Invoice for ${body[orderId]} via the backup service"))
+def dr_state(failover, throttle):
+    parts = [route("incoming-orders", FILE_ORDERS, DR_INCOMING + DR_RECIPIENTS), dr_warehouse("DK"), dr_warehouse("DE"),
+             dr_warehouse("US", throttle),
+             route("billing-paid", DIRECT("billing-paid"), DR_FAILOVER if failover else log("Invoice for ${body[orderId]}")),
+             DR_PENDING]
+    if failover:
+        parts += [DR_PRIMARY, DR_BACKUP]
+    return "\n".join(parts)
+EXAMPLES.append({
+    "name": "route-dynamic-routing", "route_file": DR, "props_file": "application.properties", "wait_seconds": 8,
+    "seed": "route-dynamic-routing", "steps_dir": NEW,
+    "initial": {DR: route("incoming-orders", FILE_ORDERS, DR_INCOMING), "application.properties": "# application properties\n"},
+    "steps": [
+        {"request": "Send each order with a recipient list to two endpoints computed from the order: direct:warehouse-<country> and direct:billing-<status>. Add a route for each: warehouse-DK, warehouse-DE and warehouse-US log \"Warehouse <country> picks ${body[orderId]}\", billing-paid logs \"Invoice for ${body[orderId]}\", and billing-pending logs \"No invoice for ${body[orderId]} until it is paid\".",
+         "check": {"file_regex": "recipientList", "log_regex": ["Warehouse DK picks ORD-1001", "Warehouse US picks ORD-1003", "Invoice for ORD-1001", "No invoice for ORD-1003 until it is paid"]},
+         "reference": {DR: dr_state(False, False)}},
+        {"request": "The invoice service has a primary and a backup. Bill a paid order through a failover load balancer: first a route invoice-primary, which is down (it throws an IllegalStateException), then a route invoice-backup that logs \"Invoice for ${body[orderId]} via the backup service\".",
+         # the primary fails on every paid order: a correct failover that leaves the error handler's log is fine too
+         "check": {"file_regex": "failover", "log_regex": ["Invoice for ORD-1001 via the backup service", "Invoice for ORD-1002 via the backup service"], "errors_ok": True},
+         "reference": {DR: dr_state(True, False)}},
+        {"request": "The US warehouse takes at most one order per second: throttle the route warehouse-US.",
+         "check": {"file_regex": "throttle", "log_regex": "Warehouse US picks ORD-1003", "errors_ok": True},
+         "reference": {DR: dr_state(True, True)}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
