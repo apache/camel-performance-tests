@@ -237,6 +237,15 @@ def error_snapshot(mcp, name):
     return records, count, reloads, before_msgs
 
 
+def file_matches(project, fname, rx):
+    """Whether a file of a check holds the regex. A name with * is a glob in the project, and any match counts (the
+    category folder of ticket-classifier, which the model's answer picks, Oct 18); else project_file."""
+    if "*" in fname:
+        import glob
+        return any(re.search(rx, read(f) or "") for f in glob.glob(os.path.join(project, fname)))
+    return bool(re.search(rx, project_file(project, fname) or ""))
+
+
 def project_file(project, fname):
     """A file of the project by path, else by name anywhere in it (as score reads the files of a check)."""
     content = read(os.path.join(project, fname))
@@ -277,7 +286,7 @@ def wait_for_check(mcp, name, chk, cfg, project, before, reload_at):
     while time.time() - t0 < limit:
         fresh = [msg(l) for l in log_lines(mcp, name, LOG_WINDOW) if fresh_ok(l)]
         logs_ok = all(sum(1 for m in fresh if re.search(rx, m, re.S)) >= need for rx in regexes)
-        files_ok = all(re.search(rx, project_file(project, f) or "") for f, rx in files.items())
+        files_ok = all(file_matches(project, f, rx) for f, rx in files.items())
         if logs_ok and files_ok:
             time.sleep(max(0.0, min(FAST_GRACE, limit - (time.time() - t0))))
             return round(time.time() - t0, 1)
@@ -381,15 +390,9 @@ def score(step, project, cfg, mcp, name, before):
     # (after the wait: a file the app writes on the reload, an outbox or an archive, exists only then)
     # round 2: other files of the project (a Java bean, beans.yaml, a stylesheet, a dropped data file)
     for fname, rx in (chk.get("files") or {}).items():
-        # by path, else by name anywhere in the project (a class the model put under src/main/java is the same class)
-        content = read(os.path.join(project, fname))
-        if not content:
-            for root, dirs, files in os.walk(project):
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
-                if os.path.basename(fname) in files:
-                    content = read(os.path.join(root, os.path.basename(fname)))
-                    break
-        if not re.search(rx, content):
+        # by path, else by name anywhere in the project (a class the model put under src/main/java is the same class);
+        # a name with * is a glob
+        if not file_matches(project, fname, rx):
             result["file_ok"] = False
     lines = log_lines(mcp, name, LOG_WINDOW)
     def lvl(l): return (l.get("level") or "").upper()

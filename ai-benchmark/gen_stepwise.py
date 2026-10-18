@@ -1043,6 +1043,59 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- ai/ticket-classifier (a local model in a route)
+# The route's model is granite4:3b on the host Ollama, next to the agent's model (64 GB hold both). The model writes
+# its own prompt, so the category of a ticket can differ: the checks accept any of the three, and the filed ticket in
+# any category folder (a glob in files).
+TC = "ticket-classifier.camel.yaml"
+TC_PROPS = "ollama.base.url=http://localhost:11434\nollama.model=granite4:3b\n" + DATA_DIR + "tickets-out\n"
+TC_BEANS = ("- beans:\n    - name: chatModel\n      type: dev.langchain4j.model.ollama.OllamaChatModel\n"
+            "      builderClass: dev.langchain4j.model.ollama.OllamaChatModel$OllamaChatModelBuilder\n      builderMethod: build\n"
+            "      properties:\n        baseUrl: \"{{ollama.base.url}}\"\n        modelName: \"{{ollama.model}}\"\n        temperature: 0.0\n\n")
+FILE_TICKETS = "      uri: file\n      parameters:\n        directoryName: tickets\n        noop: true\n        sortBy: \"file:name\"\n"
+def tc_ask(ind):
+    i = " " * ind
+    return (i + "- setVariable:\n" + i + "    name: prompt\n" + i + "    expression:\n" + i + "      simple:\n" + i + "        expression: >-\n"
+            + i + "          You sort the support tickets of a web shop. Answer with one word only, the category of the\n"
+            + i + "          ticket: shipping, billing or account. Ticket: ${body[text]}\n"
+            + i + "- to:\n" + i + "    uri: langchain4j-chat\n" + i + "    parameters:\n" + i + "      chatId: tickets\n"
+            + i + "      chatModel: \"#chatModel\"\n" + i + "    variableSend: prompt\n" + i + "    variableReceive: answer\n"
+            + i + "- setVariable:\n" + i + "    name: category\n" + i + "    expression:\n" + i + "      simple:\n"
+            + i + "        expression: \"${variable.answer.toLowerCase().replaceAll('[^a-z]', '')}\"\n")
+TC_BREAKER = ("        - circuitBreaker:\n            resilience4jConfiguration:\n              timeoutEnabled: true\n              timeoutDuration: 60000\n"
+              "            steps:\n" + tc_ask(14) + "            onFallback:\n              steps:\n                - setVariable:\n"
+              "                    name: category\n                    expression:\n                      constant:\n                        expression: unknown\n")
+TC_UNKNOWN = ("        - filter:\n            expression:\n              simple:\n                expression: \"${variable.category} not in 'shipping,billing,account'\"\n"
+              "            steps:\n              - setVariable:\n                  name: category\n                  expression:\n                    constant:\n"
+              "                      expression: unknown\n")
+TC_FILE = (set_header("CamelFileName", "simple", "\"${variable.category}/${body[ticketId]}.json\"")
+           + "        - marshal:\n            json:\n              library: Jackson\n"
+           + "        - to:\n            uri: file\n            parameters:\n              directoryName: tickets-out\n")
+TC_LOG = log("Ticket ${body[ticketId]} is ${variable.category}")
+TC_RECEIVED = UNMARSHAL + log("Ticket ${body[ticketId]}: ${body[text]}")
+tc_s1 = route("classify-tickets", FILE_TICKETS, TC_RECEIVED)
+tc_s2 = TC_BEANS + route("classify-tickets", FILE_TICKETS, TC_RECEIVED + tc_ask(8) + TC_LOG)
+tc_s3 = TC_BEANS + route("classify-tickets", FILE_TICKETS, TC_RECEIVED + tc_ask(8) + TC_UNKNOWN + TC_LOG + TC_FILE)
+tc_s4 = TC_BEANS + route("classify-tickets", FILE_TICKETS, TC_RECEIVED + TC_BREAKER + TC_UNKNOWN + TC_LOG + TC_FILE)
+TC_CATEGORY = "(?i)Ticket %s is (shipping|billing|account)\\b"
+EXAMPLES.append({
+    "name": "ai-ticket-classifier", "route_file": TC, "props_file": "application.properties", "wait_seconds": 20,
+    "seed": "ai-ticket-classifier", "steps_dir": NEW,
+    "initial": {TC: tc_s1, "application.properties": TC_PROPS},
+    "steps": [
+        {"request": "Ask the local model for the category of each ticket: shipping, billing or account. Use the langchain4j-chat component with an Ollama chat model (dev.langchain4j.model.ollama.OllamaChatModel) for the model and base URL in application.properties. Keep the ticket as the body, the category in a variable category, and log \"Ticket ${body[ticketId]} is ${variable.category}\".",
+         "check": {"file_regex": "langchain4j-chat", "log_regex": [TC_CATEGORY % "T-1", TC_CATEGORY % "T-3"]},
+         "reference": {TC: tc_s2}},
+        {"request": "File each ticket as JSON in tickets-out/<category>/<ticketId>.json, and in tickets-out/unknown/ when the category is not shipping, billing or account.",
+         "check": {"files": {"tickets-out/*/T-1.json": "T-1", "tickets-out/*/T-3.json": "T-3"}, "log_regex": TC_CATEGORY % "T-2"},
+         "reference": {TC: tc_s3}},
+        {"request": "Put the call to the model in a circuit breaker with a timeout of 60 seconds; on fallback, the category is unknown.",
+         "check": {"file_regex": "circuitBreaker", "file_regex2": "onFallback", "files": {"tickets-out/*/T-1.json": "T-1"},
+                   "log_regex": TC_CATEGORY % "T-1"},
+         "reference": {TC: tc_s4}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
