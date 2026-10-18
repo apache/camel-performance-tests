@@ -883,9 +883,11 @@ EXAMPLES.append({
     "seed": "connect-service-jms-request-reply", "infra": ["artemis"], "steps_dir": NEW,
     "initial": {JR: jr_s1, "application.properties": "# application properties\n"},
     "steps": [
-        {"request": "Connect to the ActiveMQ Artemis broker that camel infra started (tcp://localhost:61616, user artemis, password artemis) and send each order to the queue orders with the jms component, logging \"Order ${header.orderId} put on the queue\" instead of received. Add a route reserve-order that takes the orders off the queue and logs \"Reserving ${header.orderId} for customer ${header.customer}\".",
+        {"request": "Connect to the ActiveMQ Artemis broker that camel infra started (tcp://localhost:61616, user artemis, password artemis) and send each order to the queue orders with the jms component, logging \"Order ${header.orderId} put on the queue\" instead of received. Add a route reserve-order that takes the orders off the queue and logs \"Reserving ${header.orderId} for customer ${header.customer}\". The integration is restarted after your change, so new connection settings apply.",
+         # a reload does not apply new camel.beans.* and camel.component.* properties: the jms component it creates has
+         # no connection factory ("connectionFactory must be specified", jref1, Oct 18), so this step restarts
          "check": {"log_regex": ["Order ORD-1001 put on the queue", "Reserving ORD-1001 for customer C-482"]},
-         "reference": {JR: jr_s2, "application.properties": JR_CF}},
+         "reference": {JR: jr_s2, "application.properties": JR_CF}, "restart": True},
         {"request": "Add a route stock-service on the queue stock that answers whether an order (the JSON body) can be reserved: \"reserved\" when stock.json has enough of every line, otherwise \"not enough <sku>\" for the first line that is short. In reserve-order, ask the stock service with request-reply, keep the order as the body, and log \"Stock service answered for ${header.orderId}: <the answer>\".",
          "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"]},
          "reference": {JR: jr_s3}},
