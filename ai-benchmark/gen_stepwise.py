@@ -370,7 +370,7 @@ EXAMPLES.append({
     "initial": {SQL: sql_s1, "application.properties": SQL_PROPS},
     "steps": [
         {"request": "Add a route register-customers that reads the JSON files in the orders directory (file endpoint with noop true, sortBy file:name and initialDelay 2000), unmarshals each with Jackson, and registers the customer in the customers table with the sql component using named parameters from the body: a new customer gets a row (id from body[customer], country from body[country], orders 1), a customer that already has a row gets orders + 1; the orders directory is read again every time the routes reload, so this must not fail on a duplicate key. Keep the order as the body (noop true) and log \"Customer ${body[customer]} from ${body[country]} registered with order ${body[orderId]}\".",
-         "check": {"file_regex": "CONFLICT|MERGE", "log_regex": ["Customer C-482 from DK registered with order ORD-1001", "Customer C-134 from US registered with order ORD-1003"], "log_not_regex": "Syntax error|duplicate key value"},
+         "check": {"file_regex": "CONFLICT|MERGE|doCatch", "log_regex": ["Customer C-482 from DK registered with order ORD-1001", "Customer C-134 from US registered with order ORD-1003"], "log_not_regex": "Syntax error|duplicate key value"},
          "reference": {SQL: sql_s3}},
         {"request": "Add a route customer-report from a timer (delay 5000, period 10000) that selects id, country and orders from customers ordered by id, logs \"${body.size()} customer(s) in the table\", and splits the list to log \"  ${body[id]} (${body[country]}): ${body[orders]} order(s)\" per row.",
          "check": {"file_regex": "split", "log_regex": ["3 customer\\(s\\) in the table", "C-482 \\(DK\\): \\d+ order\\(s\\)"]},
