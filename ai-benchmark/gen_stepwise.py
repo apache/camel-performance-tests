@@ -900,6 +900,61 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- route/enrich-and-dedupe (idempotent consumer, pollEnrich, wire tap)
+# The ladder never used these EIPs. The shop sent ORD-1001 twice (resent-order-1001.json); the repository is in memory
+# and a reload recreates it, so every step sees the orders again (a repository that outlives reloads would hide them).
+ED = "enrich-and-dedupe.camel.yaml"
+ED_BEANS = "- beans:\n    - name: orderIds\n      type: org.apache.camel.support.processor.idempotent.MemoryIdempotentRepository\n\n"
+ED_RECEIVED = UNMARSHAL + log("Order ${body[orderId]} received")
+def ed_accepted(enrich, tap):
+    ind = " " * 22
+    body = log("Order ${body[orderId]} accepted", ind)
+    if enrich:
+        # the example puts the file name in a header: pollEnrich's file consumer evaluates fileName with the headers
+        # of the message, not its body (${body[customer]} there fails, the CAMEL-21733 poll optimization)
+        body += (set_header("customerFile", "simple", "\"${body[customer]}.json\"", ind)
+                 + ind + "- pollEnrich:\n" + ind + "    expression:\n" + ind + "      simple:\n"
+                 + ind + "        expression: \"file:customers?fileName=${header.customerFile}&noop=true&idempotent=false\"\n"
+                 + ind + "    timeout: 2000\n" + ind + "    variableReceive: customer\n"
+                 + ind + "- unmarshal:\n" + ind + "    variableSend: customer\n" + ind + "    variableReceive: customer\n"
+                 + ind + "    json:\n" + ind + "      library: Jackson\n"
+                 + log("Order ${body[orderId]} for ${variable.customer[name]} (${variable.customer[tier]})", ind))
+    if tap:
+        body += ind + "- wireTap:\n" + ind + "    uri: direct:audit\n"
+    return body
+def ed_idem(accepted):
+    return ("        - idempotentConsumer:\n            expression:\n              simple:\n                expression: \"${body[orderId]}\"\n"
+            "            idempotentRepository: orderIds\n            skipDuplicate: false\n            steps:\n"
+            "              - choice:\n                  when:\n                    - expression:\n                        simple:\n"
+            "                          expression: \"${exchangeProperty.CamelDuplicateMessage} == true\"\n                      steps:\n"
+            + log("Order ${body[orderId]} is a duplicate, skipped", " " * 24)
+            + "                  otherwise:\n                    steps:\n" + accepted)
+ED_AUDIT = route("audit", DIRECT("audit"),
+                 set_header("CamelFileName", "simple", "\"${body[orderId]}.json\"")
+                 + "        - marshal:\n            json:\n              library: Jackson\n"
+                 + "        - to:\n            uri: file\n            parameters:\n              directoryName: audit\n"
+                 + log("Audited ${header.CamelFileName}"))
+ed_s1 = route("incoming-orders", FILE_ORDERS, ED_RECEIVED)
+ed_s2 = ED_BEANS + route("incoming-orders", FILE_ORDERS, ED_RECEIVED + ed_idem(ed_accepted(False, False)))
+ed_s3 = ED_BEANS + route("incoming-orders", FILE_ORDERS, ED_RECEIVED + ed_idem(ed_accepted(True, False)))
+ed_s4 = ED_BEANS + route("incoming-orders", FILE_ORDERS, ED_RECEIVED + ed_idem(ed_accepted(True, True))) + "\n" + ED_AUDIT
+EXAMPLES.append({
+    "name": "route-enrich-and-dedupe", "route_file": ED, "props_file": "application.properties", "wait_seconds": 8,
+    "seed": "route-enrich-and-dedupe", "steps_dir": NEW,
+    "initial": {ED: ed_s1, "application.properties": DATA_DIR + "audit\n"},
+    "steps": [
+        {"request": "The shop sometimes sends an order twice: resent-order-1001.json is ORD-1001 again. Accept each order id only once with an idempotent consumer and an in-memory repository: log \"Order ${body[orderId]} accepted\" for a new order id, and \"Order ${body[orderId]} is a duplicate, skipped\" for one seen before.",
+         "check": {"file_regex": "idempotentConsumer", "log_regex": ["Order ORD-1001 accepted", "Order ORD-1003 accepted", "Order ORD-1001 is a duplicate, skipped"]},
+         "reference": {ED: ed_s2}},
+        {"request": "Enrich each accepted order with its customer: read customers/<customer>.json with pollEnrich, keep the order as the body, and log \"Order ${body[orderId]} for <name> (<tier>)\" with the customer's name and tier.",
+         "check": {"file_regex": "pollEnrich", "log_regex": ["Order ORD-1001 for Anna Jensen \\(gold\\)", "Order ORD-1003 for Emily Carter \\(bronze\\)"]},
+         "reference": {ED: ed_s3}},
+        {"request": "Copy each accepted order as JSON to audit/<orderId>.json with a wire tap, so the copy does not hold the order up, and log \"Audited <orderId>.json\" when a copy is written.",
+         "check": {"file_regex": "wireTap", "log_regex": "Audited ORD-1001.json", "files": {"audit/ORD-1001.json": "ORD-1001"}},
+         "reference": {ED: ed_s4}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
