@@ -3,6 +3,7 @@
 # Usage: run-stepwise-ladder.sh <tag> [k]      Results: stepwise/<tag>-<i>/<name>/ (results.json, run.log, traces)
 # BENCH_REFERENCE=1 applies the reference files instead of asking the model (the reference pass of the steps files).
 # BENCH_ONLY="<name> [<name> ...]" runs only those examples.
+# BENCH_STEPS_DIR=steps-new runs the new set (2026-10-18) instead of the ladder in steps-ladder/.
 set -u
 TAG="${1:?usage: run-stepwise-ladder.sh <tag> [k]}"
 K="${2:-1}"
@@ -12,7 +13,7 @@ command -v caffeinate > /dev/null && caffeinate -i -s -w $$ &
 for i in $(seq 1 "$K"); do
   if (( K > 1 )); then T="$TAG-$i"; else T="$TAG"; fi
   : > "stepwise-$T.log"   # a fresh log per run, so a later wait on its DONE line cannot see an earlier run's
-  for f in steps-ladder/*.json; do
+  for f in ${BENCH_STEPS_DIR:-steps-ladder}/*.json; do
     name=$(basename "$f" .json)
     if [[ -n "${BENCH_ONLY:-}" && " $BENCH_ONLY " != *" $name "* ]]; then continue; fi
     python3 gen_stepwise.py "$name" > /dev/null
@@ -30,9 +31,9 @@ for i in $(seq 1 "$K"); do
   done
   # the services an example needed stay up across its passes; stop them once the run is over
   for svc in $(python3 -c "
-import glob, json
+import glob, json, os
 out = set()
-for f in glob.glob('steps-ladder/*.json'):
+for f in glob.glob(os.environ.get('BENCH_STEPS_DIR', 'steps-ladder') + '/*.json'):
     try: out.update(json.load(open(f)).get('infra') or [])
     except Exception: pass
 print(' '.join(sorted(out)))"); do camel infra stop "$svc" > /dev/null 2>&1 || true; done

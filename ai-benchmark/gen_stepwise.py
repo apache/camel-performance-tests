@@ -777,6 +777,66 @@ EXAMPLES.append({
     ]})
 
 
+# ================================================================ the new set (2026-10-18), written to steps-new/
+# Claus, Oct 18: messaging, the EIPs the ladder never uses, code-first REST and AI. Kept out of steps-ladder/ so the
+# nightly 71 steps stay comparable; run with BENCH_STEPS_DIR=steps-new run-stepwise-ladder.sh <tag> [k].
+NEW = "steps-new"
+
+# ---------------------------------------------------------------- connect-service/kafka-orders (Kafka started with camel infra)
+KO = "kafka-orders.camel.yaml"
+# pollTimeoutMs 500: a camel-kafka consumer stops only after its current poll returns (the poll loop holds the lock that
+# stop() waits for before it wakes the consumer), up to the default 5000 ms per consumer and one route after another;
+# the 5 s shutdown timeout of camel run --dev is then exceeded on a reload with two or more Kafka routes, and the
+# forced shutdown logs ERRORs from the interrupted Kafka clients (kref1, Oct 18). Remove once CAMEL-25753 is fixed.
+KO_PROPS = "camel.component.kafka.brokers=localhost:9092\ncamel.component.kafka.pollTimeoutMs=500\n"
+def kafka_from(topic):
+    # earliest: every reload starts the consumers in a new random group, which then reads the topic from the start
+    return "      uri: kafka\n      parameters:\n        topic: " + topic + "\n        autoOffsetReset: earliest\n"
+def kafka_to(topic, ind="        "):
+    return ind + "- to:\n" + ind + "    uri: kafka\n" + ind + "    parameters:\n" + ind + "      topic: " + topic + "\n"
+KO_VALIDATE = route("validate-order", DIRECT("validate-order"),
+                    "        - choice:\n            when:\n              - expression:\n                  simple:\n"
+                    "                    expression: \"${header.status} != 'paid'\"\n                steps:\n"
+                    + log("Order ${header.orderId} is ${header.status}, not published", "                  ")
+                    + "                  - stop: {}\n            otherwise:\n              steps:\n"
+                    + log("Order ${header.orderId} validated", "                "))
+def ko_incoming(validate, key):
+    return route("incoming-orders", FILE_ORDERS,
+                 set_header("orderId", "jsonpath", "\"$.orderId\"") + set_header("status", "jsonpath", "\"$.status\"")
+                 + ("        - to:\n            uri: direct:validate-order\n" if validate else "")
+                 + (set_header("CamelKafkaKey", "simple", "\"${header.orderId}\"") if key else "")
+                 + kafka_to("orders") + log("Published ${header.orderId} to the orders topic"))
+def ko_dispatch(fan_out, key):
+    return route("dispatch", kafka_from("orders"),
+                 (log("Dispatching ${header.CamelKafkaKey} from partition ${header.CamelKafkaPartition} offset ${header.CamelKafkaOffset}")
+                  if key else log("Received ${header.orderId} from the orders topic"))
+                 + ("        - multicast:\n            steps:\n" + kafka_to("fulfilment", "              ")
+                    + kafka_to("notifications", "              ") if fan_out else ""))
+KO_DEPARTMENTS = ("\n" + route("fulfilment", kafka_from("fulfilment"),
+                               UNMARSHAL + log("Fulfilment: ${body[lines].size()} line(s) of ${body[orderId]} to the warehouse"))
+                  + "\n" + route("notification", kafka_from("notifications"),
+                                 UNMARSHAL + log("Notification: email to customer ${body[customer]} about ${body[orderId]}")))
+ko_s1 = ko_incoming(False, False) + "\n" + ko_dispatch(False, False)
+ko_s2 = ko_incoming(True, False) + "\n" + KO_VALIDATE + "\n" + ko_dispatch(False, False)
+ko_s3 = ko_incoming(True, False) + "\n" + KO_VALIDATE + "\n" + ko_dispatch(True, False) + KO_DEPARTMENTS
+ko_s4 = ko_incoming(True, True) + "\n" + KO_VALIDATE + "\n" + ko_dispatch(True, True) + KO_DEPARTMENTS
+EXAMPLES.append({
+    "name": "connect-service-kafka-orders", "route_file": KO, "props_file": "application.properties", "wait_seconds": 20,
+    "seed": "connect-service-kafka-orders", "infra": ["kafka"], "steps_dir": NEW,
+    "initial": {KO: ko_s1, "application.properties": KO_PROPS},
+    "steps": [
+        {"request": "Only paid orders may be published to Kafka. Add a route validate-order from direct:validate-order with a choice: when the status header is not paid, log \"Order ${header.orderId} is ${header.status}, not published\" and stop the message; otherwise log \"Order ${header.orderId} validated\". Call it from incoming-orders before the order is sent to the orders topic.",
+         "check": {"file_regex": "validate-order", "log_regex": ["Order ORD-1003 is pending, not published", "Order ORD-1001 validated", "Published ORD-1001 to the orders topic"], "log_not_regex": "Published ORD-1003"},
+         "reference": {KO: ko_s2}},
+        {"request": "Fan out the orders in dispatch: send each one with a multicast to two more topics, fulfilment and notifications. Add a route fulfilment that consumes the fulfilment topic from the earliest offset, unmarshals the JSON with Jackson and logs \"Fulfilment: ${body[lines].size()} line(s) of ${body[orderId]} to the warehouse\", and a route notification that consumes the notifications topic the same way and logs \"Notification: email to customer ${body[customer]} about ${body[orderId]}\".",
+         "check": {"file_regex": "multicast", "log_regex": ["Fulfilment: 2 line\\(s\\) of ORD-1001 to the warehouse", "Notification: email to customer C-482 about ORD-1001"]},
+         "reference": {KO: ko_s3}},
+        {"request": "Publish each order with its order id as the Kafka record key, and change the log of dispatch to \"Dispatching ${header.CamelKafkaKey} from partition ${header.CamelKafkaPartition} offset ${header.CamelKafkaOffset}\".",
+         "check": {"log_regex": "Dispatching ORD-1001 from partition \\d+ offset \\d+"},
+         "reference": {KO: ko_s4}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
@@ -814,7 +874,9 @@ def main():
             pd = os.path.join(HERE, ex["peer"]["project"])
             shutil.rmtree(pd, ignore_errors=True)
             shutil.copytree(os.path.join(SEEDS, ex["peer"]["seed"]), pd)
-        with open(os.path.join(STEPS_DIR, ex["name"] + ".json"), "w") as f:
+        steps_dir = os.path.join(HERE, ex["steps_dir"]) if ex.get("steps_dir") else STEPS_DIR
+        os.makedirs(steps_dir, exist_ok=True)
+        with open(os.path.join(steps_dir, ex["name"] + ".json"), "w") as f:
             json.dump(cfg, f, indent=1)
         write_project(ex)
         print(f"{ex['name']}: {len(steps)} steps, project stepwise-ladder/{ex['name']}")
