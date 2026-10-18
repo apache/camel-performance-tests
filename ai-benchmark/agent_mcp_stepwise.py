@@ -305,22 +305,26 @@ def probe(pr):
     server may still be settling after the reload, so the request is retried a few times until the expected status."""
     method = pr.get("method", "GET"); url = pr["url"]; want = int(pr.get("expect_status", 200))
     out = {"url": url, "method": method, "ok": False, "status": None, "body": ""}
+    full = ""
     for _ in range(6):
         try:
             data = pr["body"].encode() if pr.get("body") is not None else None
             req = urllib.request.Request(url, data=data, method=method, headers=pr.get("headers") or {})
             with urllib.request.urlopen(req, timeout=8) as r:
-                out["status"], out["body"] = r.status, r.read().decode(errors="replace")[:600]
+                out["status"], full = r.status, r.read().decode(errors="replace")
         except urllib.error.HTTPError as e:
-            out["status"], out["body"] = e.code, e.read().decode(errors="replace")[:600]
+            out["status"], full = e.code, e.read().decode(errors="replace")
         except Exception as e:
-            out["status"], out["body"] = None, str(e)[:200]
+            out["status"], full = None, str(e)[:200]
+        # the result keeps the start of the body; the regex is matched on all of it (the /orders/{id} path of a
+        # generated API description comes after the first 600 characters, rcref Oct 18)
+        out["body"] = full[:600]
         # the status alone is not enough: right after a reload the previous route may still answer 200 with its own
         # body, and that is not the answer the step asks for -- retry until the body matches too
-        if out["status"] == want and body_matches(pr.get("body_regex"), out["body"]):
+        if out["status"] == want and body_matches(pr.get("body_regex"), full):
             break
         time.sleep(2)
-    out["ok"] = out["status"] == want and body_matches(pr.get("body_regex"), out["body"])
+    out["ok"] = out["status"] == want and body_matches(pr.get("body_regex"), full)
     return out
 
 

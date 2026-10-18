@@ -998,6 +998,51 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- contracts/rest-code-first (REST DSL code first, json binding, probes)
+# The answers are Java objects written by the json binding; error answers are JSON text (skipBindingOnErrorCode). Step 2
+# adds a Java record (a restart compiles it); step 3 needs camel-openapi-java, which camel run does not add by itself
+# for a code-first apiContextPath (the dependency applies on the restart).
+RC = "rest-code-first.camel.yaml"
+RC_LIST = '- route:\n    id: list-orders\n    from:\n      uri: direct\n      parameters:\n        name: list-orders\n      steps:\n        - setBody:\n            expression:\n              constant:\n                expression: "resource:file:orders.json"\n        - unmarshal:\n            json:\n              library: Jackson\n'
+RC_GET = '- route:\n    id: get-order\n    from:\n      uri: direct\n      parameters:\n        name: get-order\n      steps:\n        - setBody:\n            expression:\n              constant:\n                expression: "resource:file:orders.json"\n        - unmarshal:\n            json:\n              library: Jackson\n        - setBody:\n            expression:\n              groovy:\n                expression: "body.find { it.orderId == headers.id }"\n        - filter:\n            expression:\n              simple:\n                expression: "${body} == null"\n            steps:\n              - setHeader:\n                  name: CamelHttpResponseCode\n                  expression:\n                    constant:\n                      expression: "404"\n              - setBody:\n                  expression:\n                    simple:\n                      expression: \'{"error": "unknown order ${header.id}"}\'\n'
+RC_CREATE = '- route:\n    id: create-order\n    from:\n      uri: direct\n      parameters:\n        name: create-order\n      steps:\n        - choice:\n            when:\n              - expression:\n                  simple:\n                    expression: "${body.lines} == null || ${body.lines.isEmpty()}"\n                steps:\n                  - setHeader:\n                      name: CamelHttpResponseCode\n                      expression:\n                        constant:\n                          expression: "400"\n                  - setBody:\n                      expression:\n                        constant:\n                          expression: \'{"error": "an order needs at least one line"}\'\n            otherwise:\n              steps:\n                - log:\n                    message: "Order ${body.orderId} created with ${body.lines.size()} line(s)"\n                - setHeader:\n                    name: CamelHttpResponseCode\n                    expression:\n                      constant:\n                        expression: "201"\n'
+RC_ORDER_JAVA = '/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the "License"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *      http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an "AS IS" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage camel.example;\n\nimport java.util.List;\n\n/**\n * An order of the shop, as the JSON of POST /orders binds to it: the REST DSL turns the request body into this record\n * (bindingMode json, type camel.example.Order), and the record back into JSON for the answer.\n */\npublic record Order(String orderId, String customer, String country, String status, List<Line> lines) {\n\n    /** One line of an order. */\n    public record Line(String sku, int qty, double price) {\n    }\n}\n'
+def rc_conf(api):
+    return "- restConfiguration:\n    bindingMode: json\n" + ("    apiContextPath: openapi\n" if api else "")
+def rc_rest(get_id, post):
+    s = ("- rest:\n    path: /orders\n    get:\n      - id: listOrders\n        description: All orders\n"
+         "        to:\n          uri: direct:list-orders\n")
+    if get_id:
+        s += ("      - id: getOrder\n        path: \"/{id}\"\n        description: One order, by its id\n"
+              "        to:\n          uri: direct:get-order\n")
+    if post:
+        s += ("    post:\n      - id: createOrder\n        description: Creates an order\n        type: camel.example.Order\n"
+              "        to:\n          uri: direct:create-order\n")
+    return s
+def rc_state(get_id, post, api):
+    parts = [rc_conf(api), rc_rest(get_id, post), RC_LIST] + ([RC_GET] if get_id else []) + ([RC_CREATE] if post else [])
+    return "\n".join(parts)
+RC_NEW = ('{"orderId": "ORD-1004", "customer": "C-482", "country": "DK", "status": "paid", '
+          '"lines": [{"sku": "CAMEL-MUG", "qty": 1, "price": 9.5}]}')
+RC_EMPTY = '{"orderId": "ORD-1005", "customer": "C-482", "country": "DK", "status": "paid", "lines": []}'
+EXAMPLES.append({
+    "name": "contracts-rest-code-first", "route_file": RC, "props_file": "application.properties", "wait_seconds": 8,
+    "seed": "contracts-rest-code-first", "steps_dir": NEW,
+    "initial": {RC: rc_state(False, False, False), "application.properties": PORT_PROPS},
+    "steps": [
+        {"request": "Add GET /orders/{id} to the REST API: answer the order with that id from orders.json, or 404 with {\"error\": \"unknown order <id>\"}.",
+         "check": {"file_regex": "\\{id\\}", "probes": [GET("/orders/ORD-1002", 200, "\"customer\":\"C-207\""), GET("/orders/ORD-9999", 404, "unknown order ORD-9999")]},
+         "reference": {RC: rc_state(True, False, False)}},
+        {"request": "Add POST /orders that binds the JSON of a new order with the json binding to a Java record camel.example.Order (orderId, customer, country, status and lines; each line has sku, qty and price). Answer 400 with {\"error\": \"an order needs at least one line\"} when the order has no lines; otherwise log \"Order ${body.orderId} created with ${body.lines.size()} line(s)\" and answer 201 with the order. A new Java class needs a restart of the integration to be compiled; it is restarted after your change.",
+         "check": {"files": {"Order.java": "record Order"}, "probes": [POST("/orders", RC_NEW, 201, "\"orderId\":\"ORD-1004\""), POST("/orders", RC_EMPTY, 400, "at least one line")],
+                   "log_regex": "Order ORD-1004 created with 1 line\\(s\\)"},
+         "reference": {RC: rc_state(True, True, False), "Order.java": RC_ORDER_JAVA}, "restart": True},
+        {"request": "Serve the API description that Camel generates from the REST operations at /openapi. The integration is restarted after your change.",
+         "check": {"probes": [GET("/openapi", 200, "\"/orders/\\{id\\}\"")]},
+         "reference": {RC: rc_state(True, True, True), "application.properties": PORT_PROPS + "camel.jbang.dependencies=camel:openapi-java\n"}, "restart": True},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
