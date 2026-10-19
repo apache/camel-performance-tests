@@ -237,6 +237,14 @@ def error_snapshot(mcp, name):
     return records, count, reloads, before_msgs
 
 
+def checkpoint_restart(mcp, name, sid, log):
+    """Restarts the app after the checkpoint of a restart step, and answers its name (as the step restart does)."""
+    data, raw = jcall(mcp, "camel_control", {"name": name, "action": "restart"})
+    print(f"step{sid}: checkpoint restart -> {raw[:200]}", file=log, flush=True)
+    time.sleep(8)
+    return data["name"] if isinstance(data, dict) and data.get("name") else name
+
+
 def file_matches(project, fname, rx):
     """Whether a file of a check holds the regex. A name with * is a glob in the project, and any match counts (the
     category folder of ticket-classifier, which the model's answer picks, Oct 18); else project_file."""
@@ -668,6 +676,7 @@ def main():
                   + f"changed_lines={res['changed_lines']} calls={calls} writes={writes} refused={refused} secs={res['seconds']} tokens={tokens}", file=log, flush=True)
             trace.close()
             if step.get("reference"):
+                removed = False
                 for fname in step["reference"]:
                     # a same-named file elsewhere (the model's copy of a Java class under src/main/java) would be a
                     # second class of the same name after the fix: remove it
@@ -676,25 +685,37 @@ def main():
                         other = os.path.join(root, os.path.basename(fname))
                         if os.path.basename(fname) in files and os.path.abspath(other) != os.path.abspath(os.path.join(project, fname)):
                             os.remove(other)
+                            removed = True
+                # the checkpoint of a restart step needs the restart too: a reload does not apply new camel.beans
+                # properties (CAMEL-25767) and keeps a Java file the harness removed, so the next reload fails on it.
+                # Without it the next step starts broken (r18: jms steps 2-4 without a connection factory,
+                # rest-code-first step 3 failing on the deleted src/main/java Order.java)
+                restart_after = bool(cfg.get("restart_each_step") or step.get("restart")) or removed
                 if FAST:
                     # files that already equal the reference are not written again: no reload, nothing to wait for
-                    if any(read(os.path.join(project, f)) != c for f, c in step["reference"].items()):
+                    if removed or any(read(os.path.join(project, f)) != c for f, c in step["reference"].items()):
                         seen = error_snapshot(mcp, name)[2]
                         apply_reference(project, cfg, step["reference"], mcp, name)
-                        for _ in range(int(24 / FAST_POLL)):
-                            time.sleep(FAST_POLL)
-                            if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
-                                break
+                        if restart_after:
+                            name = checkpoint_restart(mcp, name, sid, log)
+                        else:
+                            for _ in range(int(24 / FAST_POLL)):
+                                time.sleep(FAST_POLL)
+                                if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
+                                    break
                         res["settled"] = wait_quiet(mcp, name, FAST_QUIET, 6)
                 else:
                     apply_reference(project, cfg, step["reference"], mcp, name)
-                    # the checkpoint write reloads the app too: wait for that reload and let its consumers settle, so
-                    # the next step's error and log snapshot is taken in a quiet state
-                    seen = error_snapshot(mcp, name)[2]
-                    for _ in range(12):
-                        time.sleep(2)
-                        if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
-                            break
+                    if restart_after:
+                        name = checkpoint_restart(mcp, name, sid, log)
+                    else:
+                        # the checkpoint write reloads the app too: wait for that reload and let its consumers settle,
+                        # so the next step's error and log snapshot is taken in a quiet state
+                        seen = error_snapshot(mcp, name)[2]
+                        for _ in range(12):
+                            time.sleep(2)
+                            if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
+                                break
                     time.sleep(6)
                 if not res["ok"]:
                     messages.append({"role": "user", "content": "I fixed that step myself; the files now contain the correct version. Continue with the next request."})

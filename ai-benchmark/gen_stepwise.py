@@ -784,11 +784,9 @@ NEW = "steps-new"
 
 # ---------------------------------------------------------------- connect-service/kafka-orders (Kafka started with camel infra)
 KO = "kafka-orders.camel.yaml"
-# pollTimeoutMs 500: a camel-kafka consumer stops only after its current poll returns (the poll loop holds the lock that
-# stop() waits for before it wakes the consumer), up to the default 5000 ms per consumer and one route after another;
-# the 5 s shutdown timeout of camel run --dev is then exceeded on a reload with two or more Kafka routes, and the
-# forced shutdown logs ERRORs from the interrupted Kafka clients (kref1, Oct 18). Remove once CAMEL-25753 is fixed.
-KO_PROPS = "camel.component.kafka.brokers=localhost:9092\ncamel.component.kafka.pollTimeoutMs=500\n"
+# no pollTimeoutMs: since CAMEL-25753 (Oct 18) a camel-kafka consumer stops without waiting for its current poll, so a
+# reload with several Kafka routes ends within the 5 s shutdown timeout of camel run --dev
+KO_PROPS = "camel.component.kafka.brokers=localhost:9092\n"
 def kafka_from(topic):
     # earliest: every reload starts the consumers in a new random group, which then reads the topic from the start
     return "      uri: kafka\n      parameters:\n        topic: " + topic + "\n        autoOffsetReset: earliest\n"
