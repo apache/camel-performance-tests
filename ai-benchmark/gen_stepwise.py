@@ -293,7 +293,7 @@ EXAMPLES.append({
     "seed": "route-filter-and-multicast",
     "initial": {FM: route("filter-and-multicast", FILE_ORDERS, UNMARSHAL + FM_LOG), "application.properties": ""},
     "steps": [
-        {"request": "Add a filter that only lets paid orders through (status == 'paid') and log inside it \"Order <id> is paid: forwarding to the departments\"; the pending order must not appear in that inner log.",
+        {"request": "Keep the received log, and after it add a filter that only lets paid orders through (status == 'paid') and log inside it \"Order <id> is paid: forwarding to the departments\"; the pending order must not appear in that inner log.",
          "check": {"file_regex": "filter", "log_regex": ["ORD-1001 is paid", "ORD-1003 received, status pending"], "log_not_regex": "ORD-1003 is paid"},
          "reference": {FM: fm_s2}},
         {"request": "Add two routes, direct:warehouse (logs \"Warehouse: pick <n> line(s) for <id>\") and direct:invoicing (logs \"Invoicing: bill customer <customer> for <id>\"), and inside the filter replace the log with a multicast to both.",
@@ -439,7 +439,9 @@ dm_s3 = route("data-mapping", TIMER_ONCE, BODY_ORDER + UNMARSHAL + GROOVY_FILE +
 dm_s5 = route("data-mapping", TIMER_ONCE, BODY_ORDER + UNMARSHAL + GROOVY_FILE + MARSHAL_JSON + log("Shipment for the courier: ${body}"))
 EXAMPLES.append({
     "name": "transform-data-mapping", "route_file": DM, "props_file": "application.properties", "wait_seconds": 8,
-    "seed": "transform-data-mapping",
+    # the seed has the finished script: step 2 asks for it to be written, and its file check would pass before the
+    # model acts (r17-r19: 14 of 18 failures reused it instead)
+    "seed": "transform-data-mapping", "exclude_seeds": ["shipment-mapping.groovy"],
     "initial": {DM: dm_s1, "application.properties": ""},
     "steps": [
         {"request": "After the unmarshal, set the body with an inline groovy expression that returns the map [shipmentRef: body.orderId], and log \"Shipment: ${body}\".",

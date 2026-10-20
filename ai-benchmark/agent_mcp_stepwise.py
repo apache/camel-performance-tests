@@ -13,7 +13,7 @@ Env: BENCH_MODEL (ollama model), MCP_URL (default http://127.0.0.1:9090/mcp), BE
 BENCH_STEPS (the steps file, default steps.json),
 BENCH_TOOL_CALLS (max tool calls per step, default 25; 20 until Oct 15 2026).
 """
-import difflib, json, os, re, subprocess, sys, time, urllib.error, urllib.request
+import difflib, json, os, re, shutil, subprocess, sys, time, urllib.error, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mcp_client import McpClient  # noqa: E402
 
@@ -235,6 +235,29 @@ def error_snapshot(mcp, name):
     data, _ = jcall(mcp, "camel_get_errors", {"name": name})
     count = len(data.get("errors", []) or []) if isinstance(data, dict) else 0
     return records, count, reloads, before_msgs
+
+
+def restore_seeds(project, cfg):
+    """Copies back the files of the example's seed that are gone from the project, such as customer files a failed
+    step's route consumed (moved into customers/.camel when it had no noop), so the checkpoint leaves the next step the
+    data the example starts with. Answers whether any file was copied (r19: 8 of 12 enrich runs began step 3 without
+    them)."""
+    seed = cfg.get("seed")
+    src = os.path.join(HERE, "seed", seed) if seed else None
+    if not src or not os.path.isdir(src):
+        return False
+    restored = False
+    for root, dirs, files in os.walk(src):
+        for f in files:
+            rel = os.path.relpath(os.path.join(root, f), src)
+            if rel.split(os.sep)[0] in cfg.get("exclude_seeds", []):
+                continue
+            dst = os.path.join(project, rel)
+            if not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(os.path.join(root, f), dst)
+                restored = True
+    return restored
 
 
 def checkpoint_restart(mcp, name, sid, log):
@@ -691,9 +714,13 @@ def main():
                 # Without it the next step starts broken (r18: jms steps 2-4 without a connection factory,
                 # rest-code-first step 3 failing on the deleted src/main/java Order.java)
                 restart_after = bool(cfg.get("restart_each_step") or step.get("restart")) or removed
+                # after a failed step, the data files of the seed that its route consumed come back too
+                restored = not res["ok"] and restore_seeds(project, cfg)
+                if restored:
+                    print(f"step{sid}: checkpoint restored seed files", file=log, flush=True)
                 if FAST:
                     # files that already equal the reference are not written again: no reload, nothing to wait for
-                    if removed or any(read(os.path.join(project, f)) != c for f, c in step["reference"].items()):
+                    if removed or restored or any(read(os.path.join(project, f)) != c for f, c in step["reference"].items()):
                         seen = error_snapshot(mcp, name)[2]
                         apply_reference(project, cfg, step["reference"], mcp, name)
                         if restart_after:
