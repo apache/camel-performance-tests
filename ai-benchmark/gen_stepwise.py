@@ -947,7 +947,10 @@ EXAMPLES.append({
          "check": {"file_regex": "idempotentConsumer", "log_regex": ["Order ORD-1001 accepted", "Order ORD-1003 accepted", "Order ORD-1001 is a duplicate, skipped"]},
          "reference": {ED: ed_s2}},
         {"request": "Enrich each accepted order with its customer: read customers/<customer>.json with pollEnrich, keep the order as the body, and log \"Order ${body[orderId]} for <name> (<tier>)\" with the customer's name and tier.",
-         "check": {"file_regex": "pollEnrich", "log_regex": ["Order ORD-1001 for Anna Jensen \\(gold\\)", "Order ORD-1003 for Emily Carter \\(bronze\\)"]},
+         # the order stays the body, as the request says: the log reads its id with ${body[orderId]} (r20: the 8 runs
+         # whose log was right had replaced the body with the customer)
+         "check": {"file_regex": "pollEnrich", "file_regex2": "Order \\$\\{body\\[orderId\\]\\} for",
+                   "log_regex": ["Order ORD-1001 for Anna Jensen \\(gold\\)", "Order ORD-1003 for Emily Carter \\(bronze\\)"]},
          "reference": {ED: ed_s3}},
         {"request": "Copy each accepted order as JSON to audit/<orderId>.json with a wire tap, so the copy does not hold the order up, and log \"Audited <orderId>.json\" when a copy is written.",
          "check": {"file_regex": "wireTap", "log_regex": "Audited ORD-1001.json", "files": {"audit/ORD-1001.json": "ORD-1001"}},
@@ -1031,7 +1034,8 @@ EXAMPLES.append({
     "initial": {RC: rc_state(False, False, False), "application.properties": PORT_PROPS},
     "steps": [
         {"request": "Add GET /orders/{id} to the REST API: answer the order with that id from orders.json, or 404 with {\"error\": \"unknown order <id>\"}.",
-         "check": {"file_regex": "\\{id\\}", "probes": [GET("/orders/ORD-1002", 200, "\"customer\":\"C-207\""), GET("/orders/ORD-9999", 404, "unknown order ORD-9999")]},
+         # the one order, not the list that holds it (r20: an answer of [{...}] matched)
+         "check": {"file_regex": "\\{id\\}", "probes": [GET("/orders/ORD-1002", 200, "^\\s*\\{.*\"customer\":\"C-207\""), GET("/orders/ORD-9999", 404, "unknown order ORD-9999")]},
          "reference": {RC: rc_state(True, False, False)}},
         {"request": "Add POST /orders that binds the JSON of a new order with the json binding to a Java record camel.example.Order (orderId, customer, country, status and lines; each line has sku, qty and price). Answer 400 with {\"error\": \"an order needs at least one line\"} when the order has no lines; otherwise log \"Order ${body.orderId} created with ${body.lines.size()} line(s)\" and answer 201 with the order. A new Java class needs a restart of the integration to be compiled; it is restarted after your change.",
          "check": {"files": {"Order.java": "record Order"}, "probes": [POST("/orders", RC_NEW, 201, "\"orderId\":\"ORD-1004\""), POST("/orders", RC_EMPTY, 400, "at least one line")],

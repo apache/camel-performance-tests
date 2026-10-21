@@ -368,6 +368,10 @@ def probe(pr):
     return out
 
 
+# how much of each tool answer the trace keeps: 800 cut the hints the analysis needs to see (r20)
+TRACE_RESULT_CHARS = 4000
+
+
 def body_matches(rx, body):
     """The check is about what the route answers, not how it spaces it: a pretty printed JSON body is the same
     answer as a compact one, so the regex is tried against the text and against the body re-serialized compactly."""
@@ -673,7 +677,7 @@ def main():
                             before["last_write"] = error_snapshot(mcp, name)
                         chars = len(out)
                         out = out[:CATALOG_RESULT_CAP if fn["name"] == "camel_catalog_doc" else TOOL_RESULT_CAP]
-                        trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:800], "chars": chars, "shown": len(out)}) + "\n"); trace.flush()
+                        trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:TRACE_RESULT_CHARS], "chars": chars, "shown": len(out)}) + "\n"); trace.flush()
                         messages.append({"role": "tool", "content": out, "tool_name": fn["name"]})
                     continue
                 answer = msg.get("content") or ""
