@@ -889,7 +889,10 @@ EXAMPLES.append({
          "check": {"log_regex": ["Order ORD-1001 put on the queue", "Reserving ORD-1001 for customer C-482"]},
          "reference": {JR: jr_s2, "application.properties": JR_CF}, "restart": True},
         {"request": "Add a route stock-service on the queue stock that answers whether an order (the JSON body) can be reserved: \"reserved\" when stock.json has enough of every line, otherwise \"not enough <sku>\" for the first line that is short. In reserve-order, ask the stock service with request-reply, keep the order as the body, and log \"Stock service answered for ${header.orderId}: <the answer>\".",
-         "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"]},
+         # the order stays the body: the answer goes to a variable (variableReceive, as the jms docs show), where a
+         # reply that replaced the body passed before (r21n-1)
+         "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"],
+                   "file_regex": "id: reserve-order(?:(?!- route:)[\\s\\S])*variableReceive"},
          "reference": {JR: jr_s3}},
         {"request": "An order the stock service cannot reserve must fail: redeliver it 3 times, one second apart, and then move the original order to the queue orders.dead, where a route dead-orders logs \"Dead order ${header.orderId}\".",
          "check": {"file_regex": "maximumRedeliveries", "log_regex": "Dead order ORD-1003", "errors_ok": True},
@@ -1084,7 +1087,7 @@ tc_s4 = TC_BEANS + route("classify-tickets", FILE_TICKETS, TC_RECEIVED + TC_BREA
 TC_CATEGORY = "(?i)Ticket %s is (shipping|billing|account)\\b"
 EXAMPLES.append({
     "name": "ai-ticket-classifier", "route_file": TC, "props_file": "application.properties", "wait_seconds": 20,
-    "seed": "ai-ticket-classifier", "steps_dir": NEW,
+    "seed": "ai-ticket-classifier", "steps_dir": NEW, "clear_dirs": ["tickets-out"],
     "initial": {TC: tc_s1, "application.properties": TC_PROPS},
     "steps": [
         {"request": "Ask the local model for the category of each ticket: shipping, billing or account. Use the langchain4j-chat component with an Ollama chat model (dev.langchain4j.model.ollama.OllamaChatModel) for the model and base URL in application.properties. Keep the ticket as the body, the category in a variable category, and log \"Ticket ${body[ticketId]} is ${variable.category}\".",
@@ -1132,6 +1135,9 @@ def main():
         if ex.get("infra"):
             # services the example needs, started with `camel infra run` before the app (the sql example's postgres)
             cfg["infra"] = ex["infra"]
+        if ex.get("clear_dirs"):
+            # output folders the checkpoint of a failed step empties
+            cfg["clear_dirs"] = ex["clear_dirs"]
         if ex.get("peer"):
             cfg["peer"] = {"project": ex["peer"]["project"], "name": ex["peer"]["name"]}
             pd = os.path.join(HERE, ex["peer"]["project"])

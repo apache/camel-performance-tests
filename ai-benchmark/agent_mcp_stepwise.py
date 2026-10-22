@@ -102,7 +102,8 @@ def to_ollama_tools(mcp_tools, names):
 def read(path):
     try:
         return open(path).read()
-    except FileNotFoundError:
+    except OSError:
+        # also a directory where a file was expected (r21n-7: the model's toD made tickets-out/shipping/T-1.json one)
         return ""
 
 
@@ -273,7 +274,7 @@ def file_matches(project, fname, rx):
     category folder of ticket-classifier, which the model's answer picks, Oct 18); else project_file."""
     if "*" in fname:
         import glob
-        return any(re.search(rx, read(f) or "") for f in glob.glob(os.path.join(project, fname)))
+        return any(re.search(rx, read(f) or "") for f in glob.glob(os.path.join(project, fname)) if os.path.isfile(f))
     return bool(re.search(rx, project_file(project, fname) or ""))
 
 
@@ -691,7 +692,15 @@ def main():
                 if isinstance(data, dict) and data.get("name"):
                     name = data["name"]
                 time.sleep(8)
-            res, route_after, props_after = score(step, project, cfg, mcp, name, before)
+            try:
+                res, route_after, props_after = score(step, project, cfg, mcp, name, before)
+            except Exception as e:
+                # a check that cannot be read fails the step instead of ending the example (r21n-7 ended after step 1)
+                print(f"step{sid}: scoring failed: {e!r}", file=log, flush=True)
+                res = {"file_ok": False, "props_ok": False, "log_ok": False, "errors": 0, "changed_lines": 0, "ok": False,
+                       "ok_final": False, "ok_lastwrite": False, "score_error": repr(e)}
+                route_after = read(os.path.join(project, cfg["route_file"]))
+                props_after = read(os.path.join(project, cfg.get("props_file", "application.properties")))
             res.update({"step": sid, "request": step["request"], "tool_calls": calls, "writes": writes, "refused_writes": refused,
                         "seconds": round(time.time() - t0, 1), "tokens": tokens, "answer": answer[:400]})
             results.append(res)
@@ -722,9 +731,19 @@ def main():
                 restored = not res["ok"] and restore_seeds(project, cfg)
                 if restored:
                     print(f"step{sid}: checkpoint restored seed files", file=log, flush=True)
+                if not res["ok"]:
+                    # what a failed step wrote into an output folder of the example goes too: r21n-7 left a directory
+                    # named tickets-out/shipping/T-1.json, and every later write of that file failed
+                    for d in cfg.get("clear_dirs", []):
+                        out = os.path.join(project, d)
+                        if os.path.isdir(out) and os.listdir(out):
+                            shutil.rmtree(out, ignore_errors=True)
+                            os.makedirs(out, exist_ok=True)
+                            print(f"step{sid}: checkpoint emptied {d}", file=log, flush=True)
+                differs = removed or restored or any(read(os.path.join(project, f)) != c for f, c in step["reference"].items())
                 if FAST:
                     # files that already equal the reference are not written again: no reload, nothing to wait for
-                    if removed or restored or any(read(os.path.join(project, f)) != c for f, c in step["reference"].items()):
+                    if differs:
                         seen = error_snapshot(mcp, name)[2]
                         apply_reference(project, cfg, step["reference"], mcp, name)
                         if restart_after:
@@ -750,6 +769,12 @@ def main():
                     time.sleep(6)
                 if not res["ok"]:
                     messages.append({"role": "user", "content": "I fixed that step myself; the files now contain the correct version. Continue with the next request."})
+                elif differs:
+                    # the model's own version passed, and the checkpoint put the reference in its place: without a word
+                    # the model went on from memory with files that had changed (r21: run-nightly-report step 3 sent
+                    # edits for its own version of the route, jms step 3 changed a Java class the restored route no
+                    # longer used)
+                    messages.append({"role": "user", "content": "Your version of that step passed. I replaced the files with my own version of that step, so read a file again before you change it. Continue with the next request."})
             json.dump(results, open(os.path.join(OUT, "results.json"), "w"), indent=1)
     finally:
         data, raw = jcall(mcp, "camel_control", {"name": name, "action": "stop"})

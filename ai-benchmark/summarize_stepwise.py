@@ -13,6 +13,7 @@ names = sorted(os.path.splitext(f)[0] for f in os.listdir(steps_dir) if f.endswi
 print(f"| example | steps | passes per step ({' '.join(tags)}) | all steps passed | last version right | final state right |")
 print("|---|---|---|---|---|---|")
 total = 0; possible = 0; clean = 0; final = 0; lastw = 0
+missing = []
 for n in names:
     per = []; runs = []
     for t in tags:
@@ -23,6 +24,13 @@ for n in names:
     if not runs:
         continue
     steps = max(len(r) for r in runs)
+    # a run that recorded fewer steps than the example has: said, so a short run is not read as a short example
+    # (r21n-7 recorded 1 of the 3 steps of ai-ticket-classifier, and the round read "9 of 17")
+    defined = len(json.load(open(os.path.join(steps_dir, n + ".json"))).get("steps", []))
+    for t, r in zip([t for t in tags if os.path.exists(os.path.join("stepwise", t, n, "results.json"))], runs):
+        if len(r) < defined:
+            missing.append(f"{n} {t}: {len(r)} of {defined} steps recorded")
+    steps = max(steps, defined)
     cols = []
     for s in range(steps):
         ok = sum(1 for r in runs if s < len(r) and r[s]["ok"]); cols.append(f"{ok}/{len(runs)}"); total += ok; possible += len(runs)
@@ -33,3 +41,5 @@ for n in names:
     print(f"| {n} | {steps} | {' '.join(cols)} | {allok}/{len(runs)} | {lw}/{n_steps} | {fin}/{n_steps} |")
 print(f"\nsteps passed: {total} of {possible}; last version right: {lastw} of {possible}; final state right: {final} of"
       f" {possible}; runs with every step passed: {clean}")
+for m in missing:
+    print(f"WARNING: {m}")
