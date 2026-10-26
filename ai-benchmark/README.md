@@ -200,7 +200,9 @@ The model gets the shared authoring tools (`SHARED` in `agent_mcp_stepwise.py`: 
 get/write/edit file, run, control, log, errors, eval expression, error diagnose) plus `camel_catalog_docs`,
 `camel_component_properties` and `camel_configuration_validate`, and at most 20 tool calls per step
 (`BENCH_TOOL_CALLS`), in a 64k context (`BENCH_NUM_CTX`; at 32k the longer examples ran out of context by their last
-step and the model stopped without a tool call). `camel_edit_file` is in the set because a model that rewrites a whole
+step and the model stopped without a tool call). An answer is at most 8192 tokens (`BENCH_NUM_PREDICT`): a cut answer
+stays out of the conversation, the model is asked for a shorter call, and the cut counts as a tool call (r22 had two
+runaway answers of 30 minutes each). `camel_edit_file` is in the set because a model that rewrites a whole
 file to change one line corrupts lines it was not asked to touch. `BENCH_EXTRA_TOOLS` adds tools for an experiment
 (the SQL tool group of CAMEL-24834).
 

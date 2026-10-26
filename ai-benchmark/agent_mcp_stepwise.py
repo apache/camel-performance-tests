@@ -28,6 +28,10 @@ MAX_TOOL_CALLS = int(os.environ.get("BENCH_TOOL_CALLS", "25"))
 # the conversation grows over an example's steps (logs with stack traces are the bulk); at 32k a long example ran out
 # of context and the model stopped after a few words without a tool call (round 3, circuit-breaker steps 2-3)
 NUM_CTX = int(os.environ.get("BENCH_NUM_CTX", "65536"))
+# the longest answer the model may write. Without a cap, r22 had two runaway answers: one camel_edit_file call grew to
+# 433 KB (99,450 tokens in 30 minutes, r22n-1), another was cut by the 30-minute timeout (r22l-3). A whole route file
+# is a few thousand tokens
+NUM_PREDICT = int(os.environ.get("BENCH_NUM_PREDICT", "8192"))
 # how many log records a step is scored on. A step that provokes failures on purpose (errors_ok) fills the window
 # with its own expected errors, and the line the check looks for scrolls out of it while sitting in the run log
 LOG_WINDOW = int(os.environ.get("BENCH_LOG_WINDOW", "400"))
@@ -78,7 +82,7 @@ def ollama_chat(messages, tools):
     # thinking off, as the Camel CLI's own Ollama client sends and as the one-shot harness does: with it on, four of
     # 33 HTTP steps in series s5 spent 4-8 minutes and 12-28k tokens and answered nothing (CAMEL-24886)
     body = json.dumps({"model": MODEL, "messages": messages, "tools": tools, "stream": False, "think": False,
-                       "options": {"temperature": 0.2, "num_ctx": NUM_CTX}}).encode()
+                       "options": {"temperature": 0.2, "num_ctx": NUM_CTX, "num_predict": NUM_PREDICT}}).encode()
     req = urllib.request.Request(HOST + "/api/chat", data=body, headers={"Content-Type": "application/json"})
     t0 = time.time()
     with urllib.request.urlopen(req, timeout=1800) as r:
@@ -641,7 +645,19 @@ def main():
                     trace.write(json.dumps({"error": str(e)}) + "\n"); break
                 msg = data["message"]; tokens += data.get("eval_count", 0)
                 trace.write(json.dumps({"secs": round(secs, 1), "eval": data.get("eval_count"), "prompt_eval": data.get("prompt_eval_count"),
+                                        "done": data.get("done_reason"),
                                         "tool_calls": msg.get("tool_calls"), "content": (msg.get("content") or "")[:500]}) + "\n"); trace.flush()
+                if data.get("done_reason") == "length" and not msg.get("tool_calls"):
+                    # an answer cut at NUM_PREDICT: Ollama returns it without its tool call. It stays out of the
+                    # conversation (it is mostly repeated text), the model is told, and it counts as a call, so a
+                    # model that runs away again ends the step instead of looping
+                    calls += 1
+                    if calls >= MAX_TOOL_CALLS:
+                        break
+                    messages.append({"role": "user", "content": f"Your last answer was cut off after {NUM_PREDICT} tokens,"
+                                     " before its tool call was complete, so nothing was done. Send a shorter call: change"
+                                     " one part of a file at a time with camel_edit_file."})
+                    continue
                 messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": msg.get("tool_calls")})
                 if msg.get("tool_calls") and calls < MAX_TOOL_CALLS:
                     for tc in msg["tool_calls"]:
