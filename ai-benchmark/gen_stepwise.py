@@ -68,26 +68,26 @@ BEANS_V1 = "- beans:\n    - name: orderNumber\n      type: \"camel.example.Order
 BEANS_V2 = BEANS_V1 + "      properties:\n        start: \"{{order.first-number}}\"\n"
 OG = "order-generator.camel.yaml"
 og_s2 = route("order-generator", TIMER5,
-              "        - setHeader:\n            name: orderId\n            expression:\n              constant:\n                expression: ORD-1001\n"
-              + log("New order ${header.orderId}"))
+              "        - setVariable:\n            name: orderId\n            expression:\n              constant:\n                expression: ORD-1001\n"
+              + log("New order ${variable.orderId}"))
 og_s3 = route("order-generator", TIMER5,
-              "        - setHeader:\n            name: orderId\n            expression:\n              method:\n                ref: orderNumber\n                method: next\n"
-              + log("New order ${header.orderId}"))
+              "        - setVariable:\n            name: orderId\n            expression:\n              method:\n                ref: orderNumber\n                method: next\n"
+              + log("New order ${variable.orderId}"))
 OG_BODY = ("        - setBody:\n            expression:\n              simple:\n                expression: |-\n"
-           "                  {\"orderId\": \"${header.orderId}\", \"customer\": \"C-${random(100,999)}\", \"country\": \"DK\",\n"
+           "                  {\"orderId\": \"${variable.orderId}\", \"customer\": \"C-${random(100,999)}\", \"country\": \"DK\",\n"
            "                   \"lines\": [{\"sku\": \"CAMEL-TSHIRT\", \"qty\": ${random(1,3)}, \"price\": 19.95}], \"status\": \"paid\"}\n")
 og_s4 = route("order-generator", TIMER5,
-              "        - setHeader:\n            name: orderId\n            expression:\n              method:\n                ref: orderNumber\n                method: next\n"
-              + OG_BODY + log("New order ${header.orderId}: ${body}"))
+              "        - setVariable:\n            name: orderId\n            expression:\n              method:\n                ref: orderNumber\n                method: next\n"
+              + OG_BODY + log("New order ${variable.orderId}: ${body}"))
 og_s5 = og_s4.replace("period: 5000", "period: \"{{order.period}}\"")
 EXAMPLES.append({
     "name": "run-order-generator", "route_file": OG, "props_file": "application.properties", "wait_seconds": 13,
     "initial": {OG: route("order-generator", TIMER5, log("New order")), "application.properties": ""},
     "steps": [
-        {"request": "Set a header orderId to a constant ORD-1001 and log \"New order ${header.orderId}\".",
-         "check": {"file_regex": "setHeader", "log_regex": "New order ORD-1001"},
+        {"request": "Set a variable orderId to a constant ORD-1001 and log \"New order ${variable.orderId}\".",
+         "check": {"file_regex": "setHeader|setVariable", "log_regex": "New order ORD-1001"},
          "reference": {OG: og_s2}},
-        {"request": "Add a Java class OrderNumber (package camel.example) with a method next() that returns \"ORD-\" and a counter starting at 1001, declare it as the bean orderNumber in beans.yaml, and set the orderId header from the bean's method instead of the constant. A new Java class needs a restart of the integration to be compiled; it is restarted after your change.",
+        {"request": "Add a Java class OrderNumber (package camel.example) with a method next() that returns \"ORD-\" and a counter starting at 1001, declare it as the bean orderNumber in beans.yaml, and set the orderId variable from the bean's method instead of the constant. A new Java class needs a restart of the integration to be compiled; it is restarted after your change.",
          "restart": True,
          "check": {"file_regex": "method|bean:orderNumber", "files": {"OrderNumber.java": "next\\(\\)", "beans.yaml": "orderNumber"}, "log_regex": "New order ORD-1002"},
          "reference": {"OrderNumber.java": ON_JAVA_V1, "beans.yaml": BEANS_V1, OG: og_s3}},
@@ -150,8 +150,8 @@ EXAMPLES.append({
 JT = "json-transform.camel.yaml"
 TIMER1 = "      uri: timer\n      parameters:\n        timerName: order\n        repeatCount: 1\n"
 BODY_FILE = "        - setBody:\n            expression:\n              constant:\n                expression: \"resource:file:order.json\"\n"
-H_ID = "        - setHeader:\n            name: orderId\n            expression:\n              jsonpath:\n                expression: \"$.orderId\"\n"
-H_COUNT = "        - setHeader:\n            name: itemCount\n            expression:\n              jsonpath:\n                expression: \"$.lines.length()\"\n"
+H_ID = "        - setVariable:\n            name: orderId\n            expression:\n              jsonpath:\n                expression: \"$.orderId\"\n"
+H_COUNT = "        - setVariable:\n            name: itemCount\n            expression:\n              jsonpath:\n                expression: \"$.lines.length()\"\n"
 def jq(expr):
     return ("        - transform:\n            expression:\n              jq:\n                expression: \"" + expr + "\"\n                resultType: java.lang.String\n")
 JQ_FULL = "{order: .orderId, country: .country, pick: [.lines[] | {sku: .sku, qty: .qty}]}"
@@ -160,18 +160,18 @@ EXAMPLES.append({
     "seed": "transform-json-transform",
     "initial": {JT: route("json-transform", TIMER1, BODY_FILE + log("Order: ${body}")), "application.properties": ""},
     "steps": [
-        {"request": "Read the order id into a header orderId with a jsonpath expression $.orderId and log the message \"Order ${header.orderId}: ${body}\" (it reads Order ORD-1001: followed by the order JSON).",
+        {"request": "Read the order id into a variable orderId with a jsonpath expression $.orderId and log the message \"Order ${variable.orderId}: ${body}\" (it reads Order ORD-1001: followed by the order JSON).",
          "check": {"file_regex": "jsonpath", "log_regex": "Order ORD-1001: \\{"},
-         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + log("Order ${header.orderId}: ${body}"))}},
-        {"request": "Add the number of lines as a header itemCount with jsonpath $.lines.length() and log \"Order <id> with <count> lines: <body>\".",
+         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + log("Order ${variable.orderId}: ${body}"))}},
+        {"request": "Add the number of lines as a variable itemCount with jsonpath $.lines.length() and log \"Order <id> with <count> lines: <body>\".",
          "check": {"log_regex": "Order ORD-1001 with 2 lines"},
-         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + H_COUNT + log("Order ${header.orderId} with ${header.itemCount} lines: ${body}"))}},
+         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + H_COUNT + log("Order ${variable.orderId} with ${variable.itemCount} lines: ${body}"))}},
         {"request": "Add a transform step with a jq expression that keeps only the order id as {order: .orderId} (result type java.lang.String), and log the result as \"Pick list for the warehouse: <body>\".",
          "check": {"file_regex": "jq", "log_regex": "Pick list for the warehouse: \\{\\s*\"order\"\\s*:\\s*\"ORD-1001\"\\s*\\}"},
-         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + H_COUNT + log("Order ${header.orderId} with ${header.itemCount} lines: ${body}") + jq("{order: .orderId}") + log("Pick list for the warehouse: ${body}"))}},
+         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + H_COUNT + log("Order ${variable.orderId} with ${variable.itemCount} lines: ${body}") + jq("{order: .orderId}") + log("Pick list for the warehouse: ${body}"))}},
         {"request": "Extend the jq expression with the country and a pick list of sku and qty per line: {order: .orderId, country: .country, pick: [.lines[] | {sku: .sku, qty: .qty}]}.",
          "check": {"log_regex": ["\"country\"\\s*:\\s*\"DK\"", "\"sku\"\\s*:\\s*\"CAMEL-TSHIRT\""]},
-         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + H_COUNT + log("Order ${header.orderId} with ${header.itemCount} lines: ${body}") + jq(JQ_FULL) + log("Pick list for the warehouse: ${body}"))}},
+         "reference": {JT: route("json-transform", TIMER1, BODY_FILE + H_ID + H_COUNT + log("Order ${variable.orderId} with ${variable.itemCount} lines: ${body}") + jq(JQ_FULL) + log("Pick list for the warehouse: ${body}"))}},
     ]})
 
 # ---------------------------------------------------------------- transform/xml-to-json
@@ -252,12 +252,12 @@ EXAMPLES.append({
 
 # ---------------------------------------------------------------- route/order-lines
 OL = "order-lines.camel.yaml"
-OL_HDR = "        - setHeader:\n            name: orderId\n            expression:\n              simple:\n                expression: \"${body[orderId]}\"\n"
+OL_HDR = "        - setVariable:\n            name: orderId\n            expression:\n              simple:\n                expression: \"${body[orderId]}\"\n"
 def split(inner):
     return "        - split:\n            expression:\n              simple:\n                expression: \"${body[lines]}\"\n            steps:\n" + inner
 ol_s2 = route("order-lines", FILE_ORDERS, UNMARSHAL + log("Order ${body[orderId]} with ${body[lines].size()} line(s)") + split(log("  pick ${body[qty]} x ${body[sku]}", "              ")))
-ol_s3 = route("order-lines", FILE_ORDERS, UNMARSHAL + OL_HDR + log("Order ${header.orderId} with ${body[lines].size()} line(s)") + split(log("  pick ${body[qty]} x ${body[sku]} for ${header.orderId}", "              ")))
-ol_s4 = ol_s3 + log("Order ${header.orderId}: all ${body[lines].size()} line(s) sent to picking")
+ol_s3 = route("order-lines", FILE_ORDERS, UNMARSHAL + OL_HDR + log("Order ${variable.orderId} with ${body[lines].size()} line(s)") + split(log("  pick ${body[qty]} x ${body[sku]} for ${variable.orderId}", "              ")))
+ol_s4 = ol_s3 + log("Order ${variable.orderId}: all ${body[lines].size()} line(s) sent to picking")
 EXAMPLES.append({
     "name": "route-order-lines", "route_file": OL, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "route-order-lines",
@@ -266,8 +266,8 @@ EXAMPLES.append({
         {"request": "Add a split over the order's lines (${body[lines]}) and inside it log the message \"  pick ${body[qty]} x ${body[sku]}\" for each line (it reads   pick 2 x CAMEL-TSHIRT).",
          "check": {"file_regex": "split", "log_regex": "pick 2 x CAMEL-TSHIRT"},
          "reference": {OL: ol_s2}},
-        {"request": "Keep the order id in a header orderId before the split and use it in the pick line: \"  pick <qty> x <sku> for <orderId>\".",
-         "check": {"file_regex": "setHeader", "log_regex": "pick 2 x CAMEL-TSHIRT for ORD-1001"},
+        {"request": "Keep the order id in a variable orderId before the split and use it in the pick line: \"  pick <qty> x <sku> for <orderId>\".",
+         "check": {"file_regex": "setHeader|setVariable", "log_regex": "pick 2 x CAMEL-TSHIRT for ORD-1001"},
          "reference": {OL: ol_s3}},
         {"request": "After the split, log a confirmation \"Order <orderId>: all <n> line(s) sent to picking\"; the body is the whole order again there.",
          "check": {"log_regex": "Order ORD-1001: all 2 line\\(s\\) sent to picking"},
@@ -388,14 +388,14 @@ UNMARSHAL_CSV = "        - unmarshal:\n            csv:\n              useMaps: 
 def split_body(inner):
     return "        - split:\n            expression:\n              simple:\n                expression: \"${body}\"\n            steps:\n" + inner
 I = "              "
-CSV_HDR = I + "- setHeader:\n" + I + "    name: invoiceId\n" + I + "    expression:\n" + I + "      simple:\n" + I + "        expression: \"${body[invoiceId]}\"\n"
+CSV_HDR = I + "- setVariable:\n" + I + "    name: invoiceId\n" + I + "    expression:\n" + I + "      simple:\n" + I + "        expression: \"${body[invoiceId]}\"\n"
 MARSHAL_JSON_IN = I + "- marshal:\n" + I + "    json:\n" + I + "      library: Jackson\n"
-TO_OUTBOX = I + "- to:\n" + I + "    uri: file\n" + I + "    parameters:\n" + I + "      directoryName: outbox\n" + I + "      fileName: \"${header.invoiceId}.json\"\n"
+TO_OUTBOX = I + "- to:\n" + I + "    uri: file\n" + I + "    parameters:\n" + I + "      directoryName: outbox\n" + I + "      fileName: \"${variable.invoiceId}.json\"\n"
 csv_s1 = route("csv-to-json", FILE_INBOX_CSV, log("Invoices as text:\\n${body}"))
 csv_s2 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + log("Invoices as a list of maps: ${body}"))
 csv_s3 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(log("Invoice ${body[invoiceId]}: ${body}", I)))
-csv_s4 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR + MARSHAL_JSON_IN + log("Invoice ${header.invoiceId}: ${body}", I)))
-csv_s5 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR + MARSHAL_JSON_IN + log("Invoice ${header.invoiceId}: ${body}", I) + TO_OUTBOX))
+csv_s4 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR + MARSHAL_JSON_IN + log("Invoice ${variable.invoiceId}: ${body}", I)))
+csv_s5 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR + MARSHAL_JSON_IN + log("Invoice ${variable.invoiceId}: ${body}", I) + TO_OUTBOX))
 EXAMPLES.append({
     "name": "transform-csv-to-json", "route_file": CSV, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "transform-csv-to-json",
@@ -407,7 +407,7 @@ EXAMPLES.append({
         {"request": "Split the list over ${body} and inside the split log \"Invoice ${body[invoiceId]}: ${body}\" for each invoice.",
          "check": {"file_regex": "split", "log_regex": ["Invoice INV-2001: \\{invoiceId=INV-2001", "Invoice INV-2003: \\{invoiceId=INV-2003"]},
          "reference": {CSV: csv_s3}},
-        {"request": "Inside the split, keep the invoice id in a header invoiceId, then marshal the invoice to JSON with Jackson and log \"Invoice ${header.invoiceId}: ${body}\" so each line shows the JSON.",
+        {"request": "Inside the split, keep the invoice id in a variable invoiceId, then marshal the invoice to JSON with Jackson and log \"Invoice ${variable.invoiceId}: ${body}\" so each line shows the JSON.",
          "check": {"file_regex": "marshal", "log_regex": "Invoice INV-2002: \\{\"invoiceId\":\"INV-2002\",\"orderId\":\"ORD-1002\""},
          "reference": {CSV: csv_s4}},
         {"request": "Write each JSON invoice to the outbox directory as a file named after the invoice id, INV-2001.json and so on.",
@@ -494,25 +494,25 @@ EXAMPLES.append({
 
 # ---------------------------------------------------------------- route/aggregator
 AG = "aggregator.camel.yaml"
-AG_HDR = "        - setHeader:\n            name: orderId\n            expression:\n              simple:\n                expression: \"${body[orderId]}\"\n"
+AG_HDR = "        - setVariable:\n            name: orderId\n            expression:\n              simple:\n                expression: \"${body[orderId]}\"\n"
 TO_SHIPMENT = I + "- to:\n" + I + "    uri: direct\n" + I + "    parameters:\n" + I + "      name: shipment\n"
 DIRECT_SHIPMENT = "      uri: direct\n      parameters:\n        name: shipment\n"
 def aggregate(completion, inner):
     return ("        - aggregate:\n            aggregationStrategy: \"#class:org.apache.camel.processor.aggregate.GroupedBodyAggregationStrategy\"\n"
-            "            correlationExpression:\n              simple:\n                expression: \"${header.orderId}\"\n" + completion + "            steps:\n" + inner)
+            "            correlationExpression:\n              simple:\n                expression: \"${variable.orderId}\"\n" + completion + "            steps:\n" + inner)
 COMPLETION_SIZE = "            completionSize: 2\n"
 COMPLETION_EXPR = "            completionSizeExpression:\n              simple:\n                expression: \"${header.CamelSplitSize}\"\n"
-picked = route("picked-lines", FILE_ORDERS, UNMARSHAL + AG_HDR + split(log("Picked ${body[qty]} x ${body[sku]} for ${header.orderId}", I) + TO_SHIPMENT))
-ag_s1 = route("picked-lines", FILE_ORDERS, UNMARSHAL + AG_HDR + split(log("Picked ${body[qty]} x ${body[sku]} for ${header.orderId}", I)))
-ag_s2 = picked + route("aggregator", DIRECT_SHIPMENT, aggregate(COMPLETION_SIZE, log("Shipment for ${header.orderId} complete: ${body}", I)))
-ag_s3 = picked + route("aggregator", DIRECT_SHIPMENT, aggregate(COMPLETION_EXPR, log("Shipment for ${header.orderId} complete: ${body}", I)))
-ag_s4 = picked + route("aggregator", DIRECT_SHIPMENT, aggregate(COMPLETION_EXPR, MARSHAL_JSON_IN + log("Shipment for ${header.orderId} complete: ${body}", I)))
+picked = route("picked-lines", FILE_ORDERS, UNMARSHAL + AG_HDR + split(log("Picked ${body[qty]} x ${body[sku]} for ${variable.orderId}", I) + TO_SHIPMENT))
+ag_s1 = route("picked-lines", FILE_ORDERS, UNMARSHAL + AG_HDR + split(log("Picked ${body[qty]} x ${body[sku]} for ${variable.orderId}", I)))
+ag_s2 = picked + route("aggregator", DIRECT_SHIPMENT, aggregate(COMPLETION_SIZE, log("Shipment for ${variable.orderId} complete: ${body}", I)))
+ag_s3 = picked + route("aggregator", DIRECT_SHIPMENT, aggregate(COMPLETION_EXPR, log("Shipment for ${variable.orderId} complete: ${body}", I)))
+ag_s4 = picked + route("aggregator", DIRECT_SHIPMENT, aggregate(COMPLETION_EXPR, MARSHAL_JSON_IN + log("Shipment for ${variable.orderId} complete: ${body}", I)))
 EXAMPLES.append({
     "name": "route-aggregator", "route_file": AG, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "route-aggregator",
     "initial": {AG: ag_s1, "application.properties": ""},
     "steps": [
-        {"request": "After the log inside the split, send each picked line to direct:shipment, and add a route aggregator from direct:shipment with an aggregate that correlates on ${header.orderId}, completes at a fixed completionSize of 2, uses the aggregation strategy #class:org.apache.camel.processor.aggregate.GroupedBodyAggregationStrategy, and logs \"Shipment for ${header.orderId} complete: ${body}\" when a shipment completes.",
+        {"request": "After the log inside the split, send each picked line to direct:shipment, and add a route aggregator from direct:shipment with an aggregate that correlates on ${variable.orderId}, completes at a fixed completionSize of 2, uses the aggregation strategy #class:org.apache.camel.processor.aggregate.GroupedBodyAggregationStrategy, and logs \"Shipment for ${variable.orderId} complete: ${body}\" when a shipment completes.",
          "check": {"file_regex": "aggregate", "file_regex2": "GroupedBodyAggregationStrategy", "log_regex": "Shipment for ORD-1001 complete", "log_not_regex": "Shipment for ORD-1002 complete"},
          "reference": {AG: ag_s2}},
         {"request": "Replace the fixed completionSize by a completionSizeExpression that takes the number of lines of the order from the header CamelSplitSize, so every order completes with all its lines.",
@@ -913,11 +913,11 @@ def ed_accepted(enrich, tap):
     ind = " " * 22
     body = log("Order ${body[orderId]} accepted", ind)
     if enrich:
-        # the example puts the file name in a header: pollEnrich's file consumer evaluates fileName with the headers
-        # of the message, not its body (${body[customer]} there fails, the CAMEL-21733 poll optimization)
-        body += (set_header("customerFile", "simple", "\"${body[customer]}.json\"", ind)
+        # the example puts the file name in a variable: pollEnrich's file consumer evaluates fileName with the variables
+        # and headers of the message, not its body (${body[customer]} there fails, the CAMEL-21733 poll optimization)
+        body += (set_var("customerFile", "${body[customer]}.json", ind)
                  + ind + "- pollEnrich:\n" + ind + "    expression:\n" + ind + "      simple:\n"
-                 + ind + "        expression: \"file:customers?fileName=${header.customerFile}&noop=true&idempotent=false\"\n"
+                 + ind + "        expression: \"file:customers?fileName=${variable.customerFile}&noop=true&idempotent=false\"\n"
                  + ind + "    timeout: 2000\n" + ind + "    variableReceive: customer\n"
                  + ind + "- unmarshal:\n" + ind + "    variableSend: customer\n" + ind + "    variableReceive: customer\n"
                  + ind + "    json:\n" + ind + "      library: Jackson\n"
