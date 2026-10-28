@@ -890,10 +890,16 @@ EXAMPLES.append({
          "check": {"log_regex": ["Order ORD-1001 put on the queue", "Reserving ORD-1001 for customer C-482"]},
          "reference": {JR: jr_s2, "application.properties": JR_CF}, "restart": True},
         {"request": "Add a route stock-service on the queue stock that answers whether an order (the JSON body) can be reserved: \"reserved\" when stock.json has enough of every line, otherwise \"not enough <sku>\" for the first line that is short. In reserve-order, ask the stock service with request-reply, keep the order as the body, and log \"Stock service answered for ${header.orderId}: <the answer>\".",
-         # the order stays the body: the answer goes to a variable (variableReceive, as the jms docs show), where a
-         # reply that replaced the body passed before (r21n-1)
+         # the order stays the body, where a reply that replaced the body passed before (r21n-1). Any way of keeping
+         # it counts (Claus, Oct 28: variableReceive is not common): the answer in a variable (variableReceive), an
+         # enrich with an aggregationStrategy, or the order kept before the call and set back as the body after it
          "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"],
-                   "file_regex": "id: reserve-order(?:(?!- route:)[\\s\\S])*variableReceive"},
+                   "file_regex": "id: reserve-order(?:(?!- route:)[\\s\\S])*(?:variableReceive|aggregationStrategy"
+                                 # a variable or property set from ${body} before the call to stock, and set back as the
+                                 # body after it (the same name, so the answer kept in a variable does not count)
+                                 "|set(?:Variable|Property):\\s*\\n\\s*name: \"?(\\w+)\"?\\s*\\n(?:(?!\\n\\s*- )[\\s\\S])*\\$\\{body\\}"
+                                 "(?:(?!- route:)[\\s\\S])*stock(?:(?!- route:)[\\s\\S])*setBody:(?:(?!\\n\\s*- )[\\s\\S])*"
+                                 "\\$\\{(?:variable|exchangeProperty)\\.\\1\\})"},
          "reference": {JR: jr_s3}},
         {"request": "An order the stock service cannot reserve must fail: redeliver it 3 times, one second apart, and then move the original order to the queue orders.dead, where a route dead-orders logs \"Dead order ${header.orderId}\".",
          "check": {"file_regex": "maximumRedeliveries", "log_regex": "Dead order ORD-1003", "errors_ok": True},
