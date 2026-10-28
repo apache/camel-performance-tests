@@ -150,6 +150,13 @@ def tod(t):
         return None
 
 
+def at_or_after(t, ref):
+    """t is at or after ref, as seconds of the day: a step that crosses midnight has its reload at 23:59:50 and the
+    line it waits for at 00:00:00 (r23l-2 stock-api s1 failed on a right route). Times more than 12 hours before ref
+    are taken as the next day, as in_step does."""
+    return t + (86400 if t < ref - 43200 else 0) >= ref
+
+
 def is_reload(l):
     m = (l.get("message") or l.get("msg") or "")
     return "Routes reloaded summary" in m or "Error reloading routes" in m or "Reloading properties" in m
@@ -318,7 +325,7 @@ def wait_for_check(mcp, name, chk, cfg, project, before, reload_at):
         if error_key(l) in seen_msgs:
             return False
         t = tod(l.get("time") or l.get("timestamp"))
-        return reload_at is None or t is None or t >= reload_at
+        return reload_at is None or t is None or at_or_after(t, reload_at)
     while time.time() - t0 < limit:
         fresh = [msg(l) for l in log_lines(mcp, name, LOG_WINDOW) if fresh_ok(l)]
         logs_ok = all(sum(1 for m in fresh if re.search(rx, m, re.S)) >= need for rx in regexes)
@@ -415,8 +422,13 @@ def score(step, project, cfg, mcp, name, before):
             # the reload this step caused: what the step forbids is only forbidden from here on, whatever the route
             # logged while the model was still writing (the step before it may have been the one provoking it)
             # the last of them: a model that wrote twice in one step is judged on the state it left behind
-            times = [t for t in (tod(l.get("time") or l.get("timestamp")) for l in fresh_reloads) if t is not None]
-            reload_at = max(times) if times else None
+            # but a reload that changed no route ("changed:0", a repair the YAML loader made anyway) leaves the routes
+            # as they were: what they logged before it still counts (r23l-5 file-processing s3: the files were moved
+            # on the first write, and the second write reloaded with changed:0, so nothing could log after it)
+            changing = [l for l in fresh_reloads if "changed:0)" not in (l.get("message") or l.get("msg") or "")]
+            times = [t for t in (tod(l.get("time") or l.get("timestamp")) for l in (changing or fresh_reloads)) if t is not None]
+            # the last of them across midnight too: 23:59:58 is before 00:00:02
+            reload_at = max(times, key=lambda t: t + (86400 if t < max(times) - 43200 else 0)) if times else None
             break
         time.sleep(gap)
     # CAMEL-24886: probes are the README's curl: an HTTP request after the reload, its status and body checked
@@ -452,7 +464,7 @@ def score(step, project, cfg, mcp, name, before):
         if reload_at is None:
             return True
         t = tod(l.get("time") or l.get("timestamp"))
-        return t is None or t >= reload_at
+        return t is None or at_or_after(t, reload_at)
     fresh_recs = [l for l in recent if error_key(l) not in seen_msgs and after_reload(l)]
     fresh = [msg(l) for l in fresh_recs]
     # round 2: log_regex may be a list (all must match), or absent (a step with nothing to see in the log)
@@ -640,7 +652,17 @@ def main():
                 answer = "(reference)"
             while not REFERENCE:
                 try:
-                    data, secs = ollama_chat(messages, tools)
+                    try:
+                        data, secs = ollama_chat(messages, tools)
+                    except urllib.error.HTTPError as e:
+                        # a 500 from Ollama is its own parse failure of the answer ("qwen tool call parsing failed:
+                        # expected element type <function> but have <parameter>"), not the model's step: r23 lost three
+                        # filter s1 steps on the first turn, on a prompt that passed 7 of 7 in r22. One more try.
+                        if e.code != 500:
+                            raise
+                        trace.write(json.dumps({"error": str(e), "retry": True}) + "\n"); trace.flush()
+                        time.sleep(5)
+                        data, secs = ollama_chat(messages, tools)
                 except Exception as e:
                     trace.write(json.dumps({"error": str(e)}) + "\n"); break
                 msg = data["message"]; tokens += data.get("eval_count", 0)

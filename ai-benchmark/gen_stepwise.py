@@ -120,7 +120,8 @@ EXAMPLES.append({
          "check": {"props_regex": "report\\.schedule\\s*=", "file_regex": "\\{\\{report\\.schedule\\}\\}", "log_regex": "120 T-shirts and 45 mugs"},
          "reference": {NR: route("nightly-report", CRON_P, log(MSG3)), "application.properties": "report.schedule=0/10 * * * * ?\ninventory.tshirt=120\ninventory.mug=45\n"}},
         {"request": "Change the schedule to 0 0 2 * * ? so the report runs at two in the morning every night.",
-         "check": {"props_regex": "report\\.schedule\\s*=\\s*0 0 2 \\* \\* \\?"},
+         # camel-cron reads + as a space (CronComponent), so 0+0+2+*+*+? is the same schedule (r23: 3 of 3 fails)
+         "check": {"props_regex": "report\\.schedule\\s*=\\s*0[ +]0[ +]2[ +]\\*[ +]\\*[ +]\\?"},
          "reference": {"application.properties": "report.schedule=0 0 2 * * ?\ninventory.tshirt=120\ninventory.mug=45\n"}},
     ]})
 
