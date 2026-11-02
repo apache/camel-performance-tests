@@ -1189,6 +1189,75 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- connect-aws-s3-sqs (S3 and SQS on the emulator of camel infra run aws)
+# Claus, Nov 2: the order files go to an S3 bucket; a route takes each new object and sends an event with the order id
+# to an SQS queue; another route consumes the queue; and the processed objects are archived. `camel infra run aws s3`
+# starts Floci, an AWS emulator with S3, SQS and more in one container on http://localhost:4566. The probes read the
+# bucket and the queue over its HTTP API, which answers requests without a signature: ListObjectsV2, and a
+# ReceiveMessage with VisibilityTimeout 0, which leaves the messages on the queue. An S3 object arrives as a stream.
+AS = "aws-orders.camel.yaml"
+AS_PROPS = ("# The AWS services started by: camel infra run aws s3\n"
+            "camel.component.aws2-s3.access-key=accesskey\ncamel.component.aws2-s3.secret-key=secretkey\n"
+            "camel.component.aws2-s3.region=us-east-1\ncamel.component.aws2-s3.override-endpoint=true\n"
+            "camel.component.aws2-s3.uri-endpoint-override=http://localhost:4566\n")
+AS_PROPS_SQS = AS_PROPS + AS_PROPS.split("\n", 1)[1].replace("aws2-s3", "aws2-sqs")
+AS_UPLOAD = ("        - to:\n            uri: aws2-s3\n            parameters:\n              bucketNameOrArn: orders\n"
+             "              autoCreateBucket: true\n              keyName: \"${file:name}\"\n")
+def as_new_objects(archive):
+    frm = "      uri: aws2-s3\n      parameters:\n        bucketNameOrArn: orders\n" + (
+        "        moveAfterRead: true\n        destinationBucket: orders-archive\n        autoCreateBucket: true\n" if archive else "")
+    return route("new-objects", frm,
+                 "        - setVariable:\n            name: orderId\n            expression:\n              jsonpath:\n"
+                 "                expression: \"$.orderId\"\n"
+                 "        - setBody:\n            expression:\n              simple:\n"
+                 "                expression: '{\"orderId\": \"${variable.orderId}\", \"object\": \"${header.CamelAwsS3Key}\"}'\n"
+                 "        - to:\n            uri: aws2-sqs\n            parameters:\n              queueNameOrArn: order-events\n"
+                 "              autoCreateQueue: true\n"
+                 + log("Event for ${variable.orderId} sent to the queue order-events"))
+AS_EVENTS = route("order-events", "      uri: aws2-sqs\n      parameters:\n        queueNameOrArn: order-events\n        autoCreateQueue: true\n",
+                  UNMARSHAL + log("Event received for ${body[orderId]} (object ${body[object]})"))
+as_s0 = route("incoming-orders", FILE_ORDERS, log("Order file ${file:name} received"))
+as_s1 = route("incoming-orders", FILE_ORDERS, AS_UPLOAD + log("Uploaded ${file:name} to the bucket orders"))
+as_s2 = as_s1 + "\n" + as_new_objects(False)
+as_s3 = as_s2 + "\n" + AS_EVENTS
+as_s4 = as_s1 + "\n" + as_new_objects(True) + "\n" + AS_EVENTS
+AWS = "http://localhost:4566"
+S3_LIST = lambda bucket, key: {"method": "GET", "url": AWS + "/" + bucket + "?list-type=2", "expect_status": 200,
+                               "body_regex": "<Key>" + key.replace(".", "\\.") + "</Key>"}
+# the event as the queue holds it: the message body is a JSON string inside the JSON answer, its quotes escaped
+SQS_PEEK = lambda rx: {"method": "POST", "url": AWS + "/", "expect_status": 200, "body_regex": rx,
+                       "headers": {"Content-Type": "application/x-amz-json-1.0", "X-Amz-Target": "AmazonSQS.ReceiveMessage"},
+                       "body": json.dumps({"QueueUrl": AWS + "/000000000000/order-events", "MaxNumberOfMessages": 10,
+                                           "VisibilityTimeout": 0})}
+# the checkpoint empties the queue: messages that a model's earlier try could not write as JSON would make the next
+# step's consumer fail on them, again after every visibility timeout (awsm1, steps 3 and 4)
+SQS_PURGE = {"method": "POST", "url": AWS + "/", "note": "(purge the queue order-events)",
+             "headers": {"Content-Type": "application/x-amz-json-1.0", "X-Amz-Target": "AmazonSQS.PurgeQueue"},
+             "body": json.dumps({"QueueUrl": AWS + "/000000000000/order-events"})}
+EXAMPLES.append({
+    "name": "connect-aws-s3-sqs", "route_file": AS, "props_file": "application.properties", "wait_seconds": 15,
+    "seed": "connect-aws-s3-sqs", "infra": ["aws s3"], "checkpoint_requests": [SQS_PURGE], "steps_dir": NEW,
+    "initial": {AS: as_s0, "application.properties": "# application properties\n"},
+    "steps": [
+        {"request": "Connect to the AWS services that camel infra started: endpoint override http://localhost:4566, region us-east-1, access key accesskey, secret key secretkey. Upload each order file to the S3 bucket orders, with the file name as the object key, and create the bucket if it does not exist. Log \"Uploaded ${file:name} to the bucket orders\" instead of received. The integration is restarted after your change, so new connection settings apply.",
+         # a reload does not apply camel.component.* properties to a component that exists already: a first try
+         # without them would keep the component without its endpoint, so the step restarts, as jms step 1 does
+         "check": {"file_regex": "aws2-s3", "log_regex": ["Uploaded order-1001\\.json to the bucket orders", "Uploaded order-1003\\.json to the bucket orders"],
+                   "probes": [S3_LIST("orders", "order-1001.json")]},
+         "reference": {AS: as_s1, "application.properties": AS_PROPS}, "restart": True},
+        {"request": "Add a route new-objects that consumes the new objects of the bucket orders; for now the consumer may delete each object after reading it. Read the order id from the JSON of the object into a variable orderId, send the event {\"orderId\": \"<order id>\", \"object\": \"<object key>\"} as JSON text to the SQS queue order-events (create the queue if it does not exist), and log \"Event for ${variable.orderId} sent to the queue order-events\". The integration is restarted after your change, so new connection settings apply.",
+         "check": {"file_regex": "aws2-sqs", "log_regex": ["Event for ORD-1001 sent to the queue order-events", "Event for ORD-1003 sent to the queue order-events"],
+                   "probes": [SQS_PEEK(r'\\"orderId\\":\s*\\"ORD-100[123]\\"'), SQS_PEEK(r'\\"object\\":\s*\\"order-100[123]\.json\\"')]},
+         "reference": {AS: as_s2, "application.properties": AS_PROPS_SQS}, "restart": True},
+        {"request": "Add a route order-events that consumes the queue order-events, unmarshals the event from JSON and logs \"Event received for ${body[orderId]} (object ${body[object]})\".",
+         "check": {"log_regex": ["Event received for ORD-1001 \\(object order-1001\\.json\\)", "Event received for ORD-1003 \\(object order-1003\\.json\\)"]},
+         "reference": {AS: as_s3}},
+        {"request": "Keep the processed orders: instead of only deleting each object of the bucket orders after it is read, move it to the bucket orders-archive, and create that bucket if it does not exist.",
+         "check": {"file_regex": "orders-archive", "probes": [S3_LIST("orders-archive", "order-1001.json"), S3_LIST("orders-archive", "order-1003.json")]},
+         "reference": {AS: as_s4}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
