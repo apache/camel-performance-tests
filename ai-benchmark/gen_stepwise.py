@@ -1228,6 +1228,9 @@ def main():
         if ex.get("clear_dirs"):
             # output folders the checkpoint of a failed step empties
             cfg["clear_dirs"] = ex["clear_dirs"]
+        if ex.get("checkpoint_requests"):
+            # HTTP requests the checkpoint sends when it resets a step: the state of a service the files do not hold
+            cfg["checkpoint_requests"] = ex["checkpoint_requests"]
         if ex.get("peer"):
             cfg["peer"] = {"project": ex["peer"]["project"], "name": ex["peer"]["name"]}
             pd = os.path.join(HERE, ex["peer"]["project"])

@@ -175,6 +175,10 @@ pass, which rewrites that example's steps file and resets its project, so each p
   (`connect-sftp-transfer` puts its invoice batches from `seed/_sftp-server/` on the server). The checks
   `server_files` and `server_not_files` read that folder, and the checkpoint copies back the seed files a step's route
   deleted or moved away, after a failed step and after a passed one whose files it replaced.
+- `checkpoint_requests`: HTTP requests (`method`, `url`, `headers`, `body`, `note`) that the checkpoint sends after a
+  failed step and after a passed one whose files it replaced, once the reference runs: the state of a service that
+  the files do not hold. `connect-aws-s3-sqs` purges its SQS queue, as messages that a model's earlier try could not
+  write as JSON made the next steps' consumer fail.
 - `restart`: on a step that adds or changes Java, the harness restarts the app after the model's turn, as the README's
   step says; a reload does not compile a class.
 - `wait_seconds`: how long to wait after the reload before the log and files are checked.

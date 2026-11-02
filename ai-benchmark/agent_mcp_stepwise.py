@@ -369,6 +369,26 @@ def restore_infra_seeds(cfg):
     return restored
 
 
+def checkpoint_requests(cfg, sid, log):
+    """Sends the example's checkpoint_requests: HTTP requests that reset the state of a service, which the files do
+    not hold, once the reference runs (the SQS queue that a model's earlier try filled with messages the next step's
+    consumer cannot read: the model run awsm1 of connect-aws-s3-sqs failed steps 3 and 4 on them). Each is sent once, and its answer is
+    only logged (a queue that does not exist yet answers 400). Answers how many were sent."""
+    for rq in cfg.get("checkpoint_requests") or []:
+        try:
+            data = rq["body"].encode() if rq.get("body") is not None else None
+            req = urllib.request.Request(rq["url"], data=data, method=rq.get("method", "POST"), headers=rq.get("headers") or {})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                status = r.status
+        except urllib.error.HTTPError as e:
+            status = e.code
+        except Exception as e:
+            status = str(e)[:80]
+        print(f"step{sid}: checkpoint request {rq.get('method', 'POST')} {rq['url']} {rq.get('note', '')} -> {status}",
+              file=log, flush=True)
+    return len(cfg.get("checkpoint_requests") or [])
+
+
 def project_file(project, fname):
     """A file of the project by path, else by name anywhere in it (as score reads the files of a check)."""
     content = read(os.path.join(project, fname))
@@ -881,7 +901,8 @@ def main():
                 # the seed files of the example's server come back as well, once the reference runs (a route of the
                 # model's that deleted or moved the batches away is gone by then): after a failed step, and after a
                 # passed one whose files the reference replaced, as the next step's reference needs them
-                restore_server = bool(cfg.get("infra_seed")) and (not res["ok"] or differs)
+                reset = not res["ok"] or differs
+                restore_server = bool(cfg.get("infra_seed")) and reset
                 if FAST:
                     # files that already equal the reference are not written again: no reload, nothing to wait for
                     if differs:
@@ -897,7 +918,8 @@ def main():
                     back = restore_infra_seeds(cfg) if restore_server else []
                     if back:
                         print(f"step{sid}: checkpoint restored server files {back}", file=log, flush=True)
-                    if differs or back:
+                    sent = checkpoint_requests(cfg, sid, log) if reset else 0
+                    if differs or back or sent:
                         res["settled"] = wait_quiet(mcp, name, FAST_QUIET, 6)
                 else:
                     apply_reference(project, cfg, step["reference"], mcp, name)
@@ -914,6 +936,8 @@ def main():
                     back = restore_infra_seeds(cfg) if restore_server else []
                     if back:
                         print(f"step{sid}: checkpoint restored server files {back}", file=log, flush=True)
+                    if reset:
+                        checkpoint_requests(cfg, sid, log)
                     time.sleep(6)
                 if not res["ok"]:
                     messages.append({"role": "user", "content": "I fixed that step myself; the files now contain the correct version. Continue with the next request."})
