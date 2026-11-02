@@ -187,19 +187,35 @@ FAST_NEG_FULL = os.environ.get("BENCH_FAST_NEG_FULL", "1") == "1"  # a step that
 SERVER_INSTRUCTIONS = os.environ.get("BENCH_SERVER_INSTRUCTIONS") == "1"
 
 
-def infra_start(services):
+# the folder a seeded infra service runs in, by service: the embedded SFTP server of camel infra serves the files of
+# the folder it was started in (its home), so the example's server files are put there before it starts, and the
+# server_files checks read them there
+INFRA_HOME = {}
+
+
+def infra_start(services, seeds=None):
     """Start the services the example needs with `camel infra run <svc> --background` and wait until each answers.
 
     Stopped first, so every pass starts against an empty database. A service kept running between passes would carry
     its rows over, and then a step that changes a row passes on what the pass before it left rather than on the work
     of the model: step 3 sets C-207 to NL, and the next pass would find it already NL. Postgres takes about 80 s to
     come up, which is the price of that. The runner stops them when the whole run is over.
+
+    seeds: {service: folder under seed/} for a service that serves files (sftp): the folder is copied to infra-<svc>/
+    in the pass's output folder, and the service is started in it, so it serves a fresh copy in every pass.
     """
+    seeds = seeds or {}
     for svc in services:
         subprocess.run(["camel", "infra", "stop", svc], check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for svc in services:
-        subprocess.run(["camel", "infra", "run", svc, "--background"], check=False,
+        cwd = HERE
+        if seeds.get(svc):
+            cwd = os.path.join(OUT, "infra-" + svc)
+            shutil.rmtree(cwd, ignore_errors=True)
+            shutil.copytree(os.path.join(HERE, "seed", seeds[svc]), cwd)
+            INFRA_HOME[svc] = cwd
+        subprocess.run(["camel", "infra", "run", svc, "--background"], check=False, cwd=cwd,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     data, deadline = {}, time.time() + INFRA_TIMEOUT
     for svc in services:
@@ -293,6 +309,63 @@ def file_matches(project, fname, rx):
     return bool(re.search(rx, project_file(project, fname) or ""))
 
 
+def server_home(cfg):
+    """The folder of the example's seeded infra service (the files on its SFTP server), or None."""
+    for svc in cfg.get("infra_seed") or {}:
+        if INFRA_HOME.get(svc):
+            return INFRA_HOME[svc]
+    return None
+
+
+def server_paths(home, fname):
+    """The files on the server a check names: a path in the server's folder, or a glob (** for any folders, so a
+    batch the route moved to invoices/done and one it moved to done both count). Never the folder test-infra keeps
+    its own files in (target/)."""
+    import glob
+    if not home:
+        return []
+    if "*" in fname:
+        found = glob.glob(os.path.join(home, fname), recursive=True)
+    else:
+        found = [os.path.join(home, fname)]
+    return [f for f in found if os.path.isfile(f) and not os.path.relpath(f, home).startswith("target" + os.sep)]
+
+
+def server_file_matches(home, fname, rx):
+    """Whether a file on the server holds the regex; with a glob, any of the files it matches. No fallback by name, as
+    the project's files have: a file of the same name elsewhere is not the file on the server."""
+    return any(re.search(rx, read(f) or "") for f in server_paths(home, fname))
+
+
+def server_listing(home):
+    """The files on the server, for the results (what a step left where)."""
+    out = []
+    for root, dirs, files in os.walk(home or ""):
+        dirs[:] = [d for d in dirs if not (root == home and d == "target")]
+        out += [os.path.relpath(os.path.join(root, f), home) for f in files]
+    return sorted(out)
+
+
+def restore_infra_seeds(cfg):
+    """Copies back the seed files of the seeded infra service that are gone from where the seed has them, such as the
+    invoice batches a step's route deleted or moved away from the server, so the next step starts from the files the
+    example starts with. Answers the files copied."""
+    restored = []
+    for svc, seed in (cfg.get("infra_seed") or {}).items():
+        home, src = INFRA_HOME.get(svc), os.path.join(HERE, "seed", seed)
+        if not home or not os.path.isdir(src):
+            continue
+        for root, dirs, files in os.walk(src):
+            for f in files:
+                rel = os.path.relpath(os.path.join(root, f), src)
+                dst = os.path.join(home, rel)
+                if not os.path.exists(dst):
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    shutil.copy2(os.path.join(root, f), dst)
+                    restored.append(rel)
+    return restored
+
+
 def project_file(project, fname):
     """A file of the project by path, else by name anywhere in it (as score reads the files of a check)."""
     content = read(os.path.join(project, fname))
@@ -313,7 +386,10 @@ def wait_for_check(mcp, name, chk, cfg, project, before, reload_at):
     regexes = chk.get("log_regex")
     regexes = [] if regexes is None else (regexes if isinstance(regexes, list) else [regexes])
     files = chk.get("files") or {}
-    if (not regexes and not files) or chk.get("min_errors") or (FAST_NEG_FULL and chk.get("log_not_regex")):
+    # the files a route writes on the server (a receipt it uploads) are waited for as the project's files are
+    server = chk.get("server_files") or {}
+    home = server_home(cfg)
+    if (not regexes and not files and not server) or chk.get("min_errors") or (FAST_NEG_FULL and chk.get("log_not_regex")):
         time.sleep(limit)
         return limit
     seen_msgs = before.get("log_records") or set()
@@ -334,6 +410,7 @@ def wait_for_check(mcp, name, chk, cfg, project, before, reload_at):
         fresh = [msg(l) for l in log_lines(mcp, name, LOG_WINDOW) if fresh_ok(l)]
         logs_ok = all(sum(1 for m in fresh if re.search(rx, m, re.S)) >= need for rx in regexes)
         files_ok = all(file_matches(project, f, rx) for f, rx in files.items())
+        files_ok = files_ok and all(server_file_matches(home, f, rx) for f, rx in server.items())
         if logs_ok and files_ok:
             time.sleep(max(0.0, min(FAST_GRACE, limit - (time.time() - t0))))
             return round(time.time() - t0, 1)
@@ -450,6 +527,17 @@ def score(step, project, cfg, mcp, name, before):
         # a name with * is a glob
         if not file_matches(project, fname, rx):
             result["file_ok"] = False
+    # the files on the server of a seeded infra service: server_files {path or glob: regex} must be there and match,
+    # server_not_files [path or glob] must be gone (a batch the route moved away)
+    home = server_home(cfg)
+    if chk.get("server_files") or chk.get("server_not_files"):
+        for fname, rx in (chk.get("server_files") or {}).items():
+            if not server_file_matches(home, fname, rx):
+                result["file_ok"] = False
+        if any(server_paths(home, fname) for fname in chk.get("server_not_files") or []):
+            result["file_ok"] = False
+    if home:
+        result["server_files"] = server_listing(home)
     lines = log_lines(mcp, name, LOG_WINDOW)
     def lvl(l): return (l.get("level") or "").upper()
     # a multi-line message (a pretty-printed body) comes as one record with a detail block: match on both
@@ -571,9 +659,11 @@ def main():
         # when the pass ends, so the next pass of the same example does not pay the startup again (about 80 s); the
         # runner stops them when the whole run is over
         t0 = time.time()
-        data = infra_start(cfg["infra"])
+        data = infra_start(cfg["infra"], cfg.get("infra_seed"))
         print(f"camel infra run {' '.join(cfg['infra'])} -> {json.dumps(data)[:300]} ({time.time() - t0:.0f}s)",
               file=log, flush=True)
+        for svc, home in INFRA_HOME.items():
+            print(f"{svc} serves {home}: {server_listing(home)}", file=log, flush=True)
         for svc, d in data.items():
             if isinstance(d, dict) and d.get("error"):
                 print(f"ABORT: {d['error']}", file=log, flush=True)
@@ -785,6 +875,10 @@ def main():
                             os.makedirs(out, exist_ok=True)
                             print(f"step{sid}: checkpoint emptied {d}", file=log, flush=True)
                 differs = removed or restored or any(read(os.path.join(project, f)) != c for f, c in step["reference"].items())
+                # the seed files of the example's server come back as well, once the reference runs (a route of the
+                # model's that deleted or moved the batches away is gone by then): after a failed step, and after a
+                # passed one whose files the reference replaced, as the next step's reference needs them
+                restore_server = bool(cfg.get("infra_seed")) and (not res["ok"] or differs)
                 if FAST:
                     # files that already equal the reference are not written again: no reload, nothing to wait for
                     if differs:
@@ -797,6 +891,10 @@ def main():
                                 time.sleep(FAST_POLL)
                                 if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
                                     break
+                    back = restore_infra_seeds(cfg) if restore_server else []
+                    if back:
+                        print(f"step{sid}: checkpoint restored server files {back}", file=log, flush=True)
+                    if differs or back:
                         res["settled"] = wait_quiet(mcp, name, FAST_QUIET, 6)
                 else:
                     apply_reference(project, cfg, step["reference"], mcp, name)
@@ -810,6 +908,9 @@ def main():
                             time.sleep(2)
                             if any(reload_key(l) not in seen for l in log_lines(mcp, name, LOG_WINDOW) if isinstance(l, dict) and is_reload(l)):
                                 break
+                    back = restore_infra_seeds(cfg) if restore_server else []
+                    if back:
+                        print(f"step{sid}: checkpoint restored server files {back}", file=log, flush=True)
                     time.sleep(6)
                 if not res["ok"]:
                     messages.append({"role": "user", "content": "I fixed that step myself; the files now contain the correct version. Continue with the next request."})

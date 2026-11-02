@@ -168,6 +168,12 @@ pass, which rewrites that example's steps file and resets its project, so each p
   after it. `contracts-openapi-client` calls the stock API in `seed/_peer-openapi-server` on port 8080.
 - `infra`: services started with `camel infra run` (the sql rung's Postgres); they stay up across the passes of a run
   and are stopped when the run is over. Docker must be running.
+- `infra_seed`: `{service: folder under seed/}` for a service that serves files. The embedded SFTP server of
+  `camel infra run sftp` serves the folder it was started in, so the harness copies the folder to
+  `stepwise/<tag>/<name>/infra-<service>/` and starts the service there, a fresh copy in every pass
+  (`connect-sftp-transfer` puts its invoice batches from `seed/_sftp-server/` on the server). The checks
+  `server_files` and `server_not_files` read that folder, and the checkpoint copies back the seed files a step's route
+  deleted or moved away, after a failed step and after a passed one whose files it replaced.
 - `restart`: on a step that adds or changes Java, the harness restarts the app after the model's turn, as the README's
   step says; a reload does not compile a class.
 - `wait_seconds`: how long to wait after the reload before the log and files are checked.
@@ -185,6 +191,8 @@ optional:
 | `file_not_regex` | the route file does not match |
 | `props_regex` | `application.properties` matches |
 | `files` | `{name: regex}`: another project file matches; found by name anywhere in the project if not at that path |
+| `server_files` | `{path: regex}`: a file on the server of the `infra_seed` service matches; a path with `*` is a glob (`**/done/x.csv`), and any match counts |
+| `server_not_files` | `[path]`: none of these files is on the server any more (a batch the route moved away) |
 | `log_regex` | a regex or a list of them; every one matches an INFO or WARN record (`min_log` times, default 1) |
 | `log_not_regex` | no record logged after this step's reload matches |
 | `interval_min` | the first two records matching `log_regex` are at least this many seconds apart |

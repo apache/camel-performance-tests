@@ -1155,6 +1155,10 @@ def main():
         if ex.get("infra"):
             # services the example needs, started with `camel infra run` before the app (the sql example's postgres)
             cfg["infra"] = ex["infra"]
+        if ex.get("infra_seed"):
+            # {service: folder under seed/}: the files a service serves (the batches on the SFTP server), started in a
+            # fresh copy of the folder in every pass; the server_files checks read them there
+            cfg["infra_seed"] = ex["infra_seed"]
         if ex.get("clear_dirs"):
             # output folders the checkpoint of a failed step empties
             cfg["clear_dirs"] = ex["clear_dirs"]
