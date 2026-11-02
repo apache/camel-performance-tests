@@ -1061,7 +1061,8 @@ EXAMPLES.append({
          "check": {"file_regex": "\\{id\\}", "probes": [GET("/orders/ORD-1002", 200, "^\\s*\\{.*\"customer\":\"C-207\""), GET("/orders/ORD-9999", 404, "unknown order ORD-9999")]},
          "reference": {RC: rc_state(True, False, False)}},
         {"request": "Add POST /orders that binds the JSON of a new order with the json binding to a Java record camel.example.Order (orderId, customer, country, status and lines; each line has sku, qty and price). Answer 400 with {\"error\": \"an order needs at least one line\"} when the order has no lines; otherwise log \"Order ${body.orderId} created with ${body.lines.size()} line(s)\" and answer 201 with the order. A new Java class needs a restart of the integration to be compiled; it is restarted after your change.",
-         "check": {"files": {"Order.java": "record Order"}, "probes": [POST("/orders", RC_NEW, 201, "\"orderId\":\"ORD-1004\""), POST("/orders", RC_EMPTY, 400, "at least one line")],
+         # Claus, Nov 2: a class that works counts too (3 of the 5 r25 failures wrote one); the probes check the binding
+         "check": {"files": {"Order.java": "(?:record|class) Order\\b"}, "probes": [POST("/orders", RC_NEW, 201, "\"orderId\":\"ORD-1004\""), POST("/orders", RC_EMPTY, 400, "at least one line")],
                    "log_regex": "Order ORD-1004 created with 1 line\\(s\\)"},
          "reference": {RC: rc_state(True, True, False), "Order.java": RC_ORDER_JAVA}, "restart": True},
         {"request": "Serve the API description that Camel generates from the REST operations at /openapi. The integration is restarted after your change.",
