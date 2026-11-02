@@ -203,24 +203,27 @@ def infra_start(services, seeds=None):
 
     seeds: {service: folder under seed/} for a service that serves files (sftp): the folder is copied to infra-<svc>/
     in the pass's output folder, and the service is started in it, so it serves a fresh copy in every pass.
+
+    A service may name its implementation after the alias, as camel infra run takes it: "aws s3" runs
+    `camel infra run aws s3`; camel infra get and stop know the service by its alias (aws) only.
     """
     seeds = seeds or {}
     for svc in services:
-        subprocess.run(["camel", "infra", "stop", svc], check=False,
+        subprocess.run(["camel", "infra", "stop", svc.split()[0]], check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for svc in services:
         cwd = HERE
         if seeds.get(svc):
-            cwd = os.path.join(OUT, "infra-" + svc)
+            cwd = os.path.join(OUT, "infra-" + svc.replace(" ", "-"))
             shutil.rmtree(cwd, ignore_errors=True)
             shutil.copytree(os.path.join(HERE, "seed", seeds[svc]), cwd)
             INFRA_HOME[svc] = cwd
-        subprocess.run(["camel", "infra", "run", svc, "--background"], check=False, cwd=cwd,
+        subprocess.run(["camel", "infra", "run"] + svc.split() + ["--background"], check=False, cwd=cwd,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     data, deadline = {}, time.time() + INFRA_TIMEOUT
     for svc in services:
         while time.time() < deadline:
-            out = subprocess.run(["camel", "infra", "get", svc, "--json"], capture_output=True, text=True).stdout
+            out = subprocess.run(["camel", "infra", "get", svc.split()[0], "--json"], capture_output=True, text=True).stdout
             m = re.search(r"\{.*\}", out, re.S)
             if m:
                 try:

@@ -167,7 +167,8 @@ pass, which rewrites that example's steps file and resets its project, so each p
 - `peer`: a second app the example talks to, started with `camel run --source-dir` before the model's app and stopped
   after it. `contracts-openapi-client` calls the stock API in `seed/_peer-openapi-server` on port 8080.
 - `infra`: services started with `camel infra run` (the sql rung's Postgres); they stay up across the passes of a run
-  and are stopped when the run is over. Docker must be running.
+  and are stopped when the run is over. Docker must be running. An entry may name the implementation after the alias,
+  as `camel infra run` takes it: `aws s3` (`camel infra get` and `stop` use the alias).
 - `infra_seed`: `{service: folder under seed/}` for a service that serves files. The embedded SFTP server of
   `camel infra run sftp` serves the folder it was started in, so the harness copies the folder to
   `stepwise/<tag>/<name>/infra-<service>/` and starts the service there, a fresh copy in every pass

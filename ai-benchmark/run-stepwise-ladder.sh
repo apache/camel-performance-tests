@@ -35,7 +35,8 @@ for i in $(seq 1 "$K"); do
 import glob, json, os
 out = set()
 for f in glob.glob(os.environ.get('BENCH_STEPS_DIR', 'steps-ladder') + '/*.json'):
-    try: out.update(json.load(open(f)).get('infra') or [])
+    # an entry may name the implementation (aws s3): camel infra stop takes the alias
+    try: out.update(s.split()[0] for s in json.load(open(f)).get('infra') or [])
     except Exception: pass
 print(' '.join(sorted(out)))"); do camel infra stop "$svc" > /dev/null 2>&1 || true; done
   echo "[$T] DONE $(date +%T)" | tee -a "stepwise-$T.log"
