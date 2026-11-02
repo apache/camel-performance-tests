@@ -14,6 +14,9 @@ import datetime, json, os, shutil, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STEPS_DIR = os.path.join(HERE, "steps-ladder")
+# Claus, Nov 2: four examples passed every step in all 21 runs of r23 to r25; they run once a week, in steps-weekly/,
+# so the nightly ladder has time for the new examples
+WEEKLY = "steps-weekly"
 # CAMEL-25670: dev mode with --source-dir reloads the routes for every file they write into the project's own folders
 # (connect-file-processing reloaded every 2 s, r13); camel.jbang.dataDir leaves those folders out (Camel 4.24)
 DATA_DIR = "camel.jbang.dataDir="
@@ -130,7 +133,7 @@ PP = "properties-and-profiles.camel.yaml"
 TIMER3 = "      uri: timer\n      parameters:\n        timerName: welcome\n        period: 3000\n"
 TIMER3_P = TIMER3.replace("period: 3000", "period: \"{{welcome.period}}\"")
 EXAMPLES.append({
-    "name": "run-properties-and-profiles", "route_file": PP, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "run-properties-and-profiles", "steps_dir": WEEKLY, "route_file": PP, "props_file": "application.properties", "wait_seconds": 8,
     "initial": {PP: route("welcome", TIMER3, log("Welcome to Camel Shop")), "application.properties": ""},
     "steps": [
         {"request": "Move the shop name to application.properties as shop.name=Camel Shop and use {{shop.name}} in the message.",
@@ -185,7 +188,7 @@ XML2 = """<?xml version="1.0" encoding="UTF-8"?>
 </order>
 """
 EXAMPLES.append({
-    "name": "transform-xml-to-json", "route_file": XJ, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "transform-xml-to-json", "steps_dir": WEEKLY, "route_file": XJ, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "transform-xml-to-json",
     "initial": {XJ: route("xml-to-json", FILE_INBOX, log("Supplier order as XML: ${body}")), "application.properties": ""},
     "steps": [
@@ -236,7 +239,7 @@ cb_s2 = route("content-based-router", FILE_ORDERS, UNMARSHAL + "        - choice
 cb_s3 = route("content-based-router", FILE_ORDERS, UNMARSHAL + "        - choice:\n            when:\n" + CB_DK + CB_EU + CB_OTHER)
 ORDER_1004 = "{\"orderId\": \"ORD-1004\", \"customer\": \"C-318\", \"country\": \"SE\", \"status\": \"paid\", \"lines\": [{\"sku\": \"CAMEL-CAP\", \"qty\": 2, \"price\": 14.00}]}\n"
 EXAMPLES.append({
-    "name": "route-content-based-router", "route_file": CB, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "route-content-based-router", "steps_dir": WEEKLY, "route_file": CB, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "route-content-based-router",
     "initial": {CB: route("content-based-router", FILE_ORDERS, UNMARSHAL + log("Order ${body[orderId]} from ${body[country]}")), "application.properties": ""},
     "steps": [
@@ -260,7 +263,7 @@ ol_s2 = route("order-lines", FILE_ORDERS, UNMARSHAL + log("Order ${body[orderId]
 ol_s3 = route("order-lines", FILE_ORDERS, UNMARSHAL + OL_HDR + log("Order ${variable.orderId} with ${body[lines].size()} line(s)") + split(log("  pick ${body[qty]} x ${body[sku]} for ${variable.orderId}", "              ")))
 ol_s4 = ol_s3 + log("Order ${variable.orderId}: all ${body[lines].size()} line(s) sent to picking")
 EXAMPLES.append({
-    "name": "route-order-lines", "route_file": OL, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "route-order-lines", "steps_dir": WEEKLY, "route_file": OL, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "route-order-lines",
     "initial": {OL: route("order-lines", FILE_ORDERS, UNMARSHAL + log("Order ${body[orderId]} with ${body[lines].size()} line(s)")), "application.properties": ""},
     "steps": [
