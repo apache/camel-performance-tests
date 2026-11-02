@@ -871,11 +871,14 @@ JR_STOCK = route("stock-service", jms_from("queue", "stock"),
                  + "        - setBody:\n            expression:\n              constant:\n                expression: \"resource:file:stock.json\"\n"
                  + UNMARSHAL + "        - setBody:\n            expression:\n              groovy:\n                expression: \"def missing = variables.order.lines.find "
                  "{ line -> (body.find { it.sku == line.sku }?.qty ?: 0) < line.qty }; missing ? 'not enough ' + missing.sku : 'reserved'\"\n")
+# the stock service of step 2 answers reserved for every order: step 2 is the request-reply, step 3 the stock logic
+JR_STOCK_STUB = route("stock-service", jms_from("queue", "stock"), const("reserved"))
 JR_DEAD = route("dead-orders", jms_from("queue", "orders.dead"), log("Dead order ${header.orderId}"))
 JR_TOPIC = (route("shipping", jms_from("topic", "orders.reserved"), log("Shipping ${header.orderId}")) + "\n"
             + route("invoicing", jms_from("topic", "orders.reserved"), log("Invoicing ${header.orderId}")))
 jr_s1 = jr_intake(False)
 jr_s2 = jr_intake(True) + "\n" + jr_reserve(False, False, False)
+jr_s3_stub = jr_intake(True) + "\n" + jr_reserve(True, False, False) + "\n" + JR_STOCK_STUB
 jr_s3 = jr_intake(True) + "\n" + jr_reserve(True, False, False) + "\n" + JR_STOCK
 jr_s4 = jr_intake(True) + "\n" + jr_reserve(True, True, False) + "\n" + JR_STOCK + "\n" + JR_DEAD
 jr_s5 = jr_intake(True) + "\n" + jr_reserve(True, True, True) + "\n" + JR_STOCK + "\n" + JR_DEAD + "\n" + JR_TOPIC
@@ -889,17 +892,24 @@ EXAMPLES.append({
          # no connection factory ("connectionFactory must be specified", jref1, Oct 18), so this step restarts
          "check": {"log_regex": ["Order ORD-1001 put on the queue", "Reserving ORD-1001 for customer C-482"]},
          "reference": {JR: jr_s2, "application.properties": JR_CF}, "restart": True},
-        {"request": "Add a route stock-service on the queue stock that answers whether an order (the JSON body) can be reserved: \"reserved\" when stock.json has enough of every line, otherwise \"not enough <sku>\" for the first line that is short. In reserve-order, ask the stock service with request-reply, keep the order as the body, and log \"Stock service answered for ${header.orderId}: <the answer>\".",
+        # Claus, Nov 2: the request-reply and the stock logic were one step, which passed 1 of 36 runs (r21 to r25; every
+        # r25 run used all 25 calls), so they are two steps now, and the stock step names Groovy, as a person would
+        {"request": "Add a route stock-service on the queue stock that answers \"reserved\" for every order. In reserve-order, ask the stock service with request-reply, keep the order as the body, and log \"Stock service answered for ${header.orderId}: <the answer>\".",
          # the order stays the body, where a reply that replaced the body passed before (r21n-1). Any way of keeping
          # it counts (Claus, Oct 28: variableReceive is not common): the answer in a variable (variableReceive), an
          # enrich with an aggregationStrategy, or the order kept before the call and set back as the body after it
-         "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"],
+         # ORD-1003 may get the real answer too: this step checks the request-reply, not the stock logic
+         "check": {"log_regex": ["Stock service answered for ORD-1001: reserved",
+                                 "Stock service answered for ORD-1003: (?:reserved|not enough CAMEL-CAP)"],
                    "file_regex": "id: reserve-order(?:(?!- route:)[\\s\\S])*(?:variableReceive|aggregationStrategy"
                                  # a variable or property set from ${body} before the call to stock, and set back as the
                                  # body after it (the same name, so the answer kept in a variable does not count)
                                  "|set(?:Variable|Property):\\s*\\n\\s*name: \"?(\\w+)\"?\\s*\\n(?:(?!\\n\\s*- )[\\s\\S])*\\$\\{body\\}"
                                  "(?:(?!- route:)[\\s\\S])*stock(?:(?!- route:)[\\s\\S])*setBody:(?:(?!\\n\\s*- )[\\s\\S])*"
                                  "\\$\\{(?:variable|exchangeProperty)\\.\\1\\})"},
+         "reference": {JR: jr_s3_stub}},
+        {"request": "Make stock-service answer whether the order (the JSON body) can be reserved: \"reserved\" when stock.json has enough of every line, otherwise \"not enough <sku>\" for the first line that is short. Use a Groovy expression to compare the lines of the order with stock.json.",
+         "check": {"log_regex": ["Stock service answered for ORD-1001: reserved", "Stock service answered for ORD-1003: not enough CAMEL-CAP"]},
          "reference": {JR: jr_s3}},
         {"request": "An order the stock service cannot reserve must fail: redeliver it 3 times, one second apart, and then move the original order to the queue orders.dead, where a route dead-orders logs \"Dead order ${header.orderId}\".",
          "check": {"file_regex": "maximumRedeliveries", "log_regex": "Dead order ORD-1003", "errors_ok": True},
