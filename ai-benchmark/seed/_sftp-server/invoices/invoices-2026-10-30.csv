@@ -1,0 +1,3 @@
+invoiceId,orderId,amount,currency
+INV-3001,ORD-1001,49.40,EUR
+INV-3002,ORD-1002,28.50,EUR

@@ -1123,6 +1123,72 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- connect-service/sftp-transfer (the embedded SFTP server of camel infra)
+# Claus, Nov 2: a file transfer as enterprises run it. The supplier puts its invoice batches on its SFTP server; the route
+# downloads them, parses each batch, uploads a receipt, moves a batch that fails to failed and, in the last step, each
+# processed batch to done. The server serves the folder it was started in, and infra_seed puts the batches of
+# seed/_sftp-server/ there. They stay on the server (noop) until the last step, so every reload downloads them again,
+# as the other examples read their files again. The broken batch is moved away at once (moveFailed): a noop consumer
+# would retry a batch that fails on every poll.
+ST = "sftp-transfer.camel.yaml"
+ST_PROPS = ("# The SFTP server started by: camel infra run sftp\n"
+            "sftp.host=localhost\nsftp.port=2222\nsftp.username=admin\nsftp.password=admin\n")
+def sftp_params(directory, ind, extra=""):
+    i = " " * ind
+    return (i + "host: \"{{sftp.host}}\"\n" + i + "port: \"{{sftp.port}}\"\n" + i + "directoryName: " + directory + "\n"
+            + i + "username: \"{{sftp.username}}\"\n" + i + "password: \"{{sftp.password}}\"\n"
+            # the reference keeps the test server's host key out of ~/.ssh/known_hosts
+            + i + "useUserKnownHostsFile: false\n" + extra)
+def st_from(extra):
+    return "      uri: sftp\n      parameters:\n" + sftp_params("invoices", 8, extra + "        sortBy: \"file:name\"\n")
+ST_INBOX = "      uri: file\n      parameters:\n        directoryName: inbox\n        noop: true\n        sortBy: \"file:name\"\n"
+ST_NOOP = "        noop: true\n        moveFailed: failed\n"
+ST_DONE = "        move: done\n        moveFailed: failed\n"
+ST_PARSE = ("        - unmarshal:\n            csv:\n              useMaps: true\n"
+            "        - setVariable:\n            name: count\n            expression:\n              simple:\n"
+            "                expression: \"${body.size()}\"\n"
+            "        - setVariable:\n            name: total\n            expression:\n              groovy:\n"
+            "                expression: \"body.sum { it.amount as BigDecimal }\"\n"
+            + log("Batch ${file:name}: ${variable.count} invoices, total ${variable.total} EUR"))
+ST_RECEIPT = ("        - setBody:\n            expression:\n              simple:\n"
+              "                expression: \"Received ${variable.count} invoices, total ${variable.total} EUR\"\n"
+              "        - to:\n            uri: sftp\n            parameters:\n"
+              + sftp_params("receipts", 14, "              fileName: \"${file:name.noext}.txt\"\n"))
+ST_DOWNLOADED = log("Downloaded ${file:name}")
+st_s0 = route("invoice-batches", ST_INBOX, log("Received ${file:name}"))
+st_s1 = route("invoice-batches", st_from("        noop: true\n"), ST_DOWNLOADED)
+st_s2 = route("invoice-batches", st_from(ST_NOOP), ST_DOWNLOADED + ST_PARSE)
+st_s3 = route("invoice-batches", st_from(ST_NOOP), ST_DOWNLOADED + ST_PARSE + ST_RECEIPT)
+st_s4 = route("invoice-batches", st_from(ST_DONE), ST_DOWNLOADED + ST_PARSE + ST_RECEIPT)
+# 77.90 as a BigDecimal sum, 77.9 as a double one: either is the total
+ST_BATCHES = ["Batch invoices-2026-10-30\\.csv: 2 invoices, total 77\\.90? EUR",
+              "Batch invoices-2026-10-31\\.csv: 3 invoices, total 82\\.90? EUR"]
+EXAMPLES.append({
+    "name": "connect-sftp-transfer", "route_file": ST, "props_file": "application.properties", "wait_seconds": 10,
+    "seed": "connect-sftp-transfer", "infra": ["sftp"], "infra_seed": {"sftp": "_sftp-server"}, "steps_dir": NEW,
+    "initial": {ST: st_s0, "application.properties": "# application properties\n"},
+    "steps": [
+        {"request": "The supplier now puts its invoice batches on its SFTP server. Connect to the SFTP server that camel infra started (host localhost, port 2222, user admin, password admin) and download the batches from its folder invoices instead of reading the local inbox. Leave the files on the server for now (noop), and log \"Downloaded ${file:name}\" instead of received.",
+         # the batches are still on the server: a route that deleted or moved them took the next steps' files away
+         "check": {"file_regex": "sftp", "log_regex": ["Downloaded invoices-2026-10-30\\.csv", "Downloaded invoices-2026-10-31\\.csv"],
+                   "server_files": {"invoices/invoices-2026-10-30.csv": "INV-3001", "invoices/invoices-2026-10-31.csv": "INV-3003"}},
+         "reference": {ST: st_s1, "application.properties": ST_PROPS}},
+        {"request": "Parse each batch as CSV with a header line, one map per invoice. Keep the number of invoices in a variable count and the sum of the amount column in a variable total (a Groovy expression can sum it), and log \"Batch ${file:name}: ${variable.count} invoices, total ${variable.total} EUR\". The batch invoices-2026-11-01.csv has an amount that is not a number, so it fails: move a batch that fails to the folder failed on the server.",
+         # the broken batch fails once per reload until it is moved away: its error is expected
+         "check": {"log_regex": ST_BATCHES, "server_files": {"**/failed/invoices-2026-11-01.csv": "INV-3006"}, "errors_ok": True},
+         "reference": {ST: st_s2}},
+        {"request": "Upload a receipt for each batch to the folder receipts on the server: a file named like the batch, but ending in .txt instead of .csv, with the text \"Received ${variable.count} invoices, total ${variable.total} EUR\".",
+         "check": {"server_files": {"**/receipts/invoices-2026-10-30.txt": "Received 2 invoices, total 77\\.90? EUR",
+                                    "**/receipts/invoices-2026-10-31.txt": "Received 3 invoices, total 82\\.90? EUR"}},
+         "reference": {ST: st_s3}},
+        {"request": "Stop leaving the processed batches on the server: move each batch to a folder done once it is processed, while a batch that fails still goes to failed.",
+         # a log check would fail a model that wrote twice: the second reload finds no batches left to log
+         "check": {"server_files": {"**/done/invoices-2026-10-30.csv": "INV-3001", "**/done/invoices-2026-10-31.csv": "INV-3003"},
+                   "server_not_files": ["invoices/invoices-2026-10-30.csv", "invoices/invoices-2026-10-31.csv"]},
+         "reference": {ST: st_s4}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
