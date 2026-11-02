@@ -13,7 +13,7 @@ Env: BENCH_MODEL (ollama model), MCP_URL (default http://127.0.0.1:9090/mcp), BE
 BENCH_STEPS (the steps file, default steps.json),
 BENCH_TOOL_CALLS (max tool calls per step, default 25; 20 until Oct 15 2026).
 """
-import difflib, json, os, re, shutil, subprocess, sys, time, urllib.error, urllib.request
+import difflib, json, os, re, shutil, signal, subprocess, sys, time, urllib.error, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mcp_client import McpClient  # noqa: E402
 
@@ -502,7 +502,104 @@ def body_matches(rx, body):
     return re.search(rx, compact, re.S) is not None
 
 
-def score(step, project, cfg, mcp, name, before):
+# the app in dev mode that the harness started (camel run --source-dir): a test_run step stops it and starts it again
+DEV_APP = {}
+# test_run: the longest a `camel test run` may take. A verify that never sees its log line gives up after about two
+# minutes, and a passing test of three HTTP cases takes about 12 s
+TEST_TIMEOUT = int(os.environ.get("BENCH_TEST_TIMEOUT", "300"))
+
+
+def start_dev_app(project, name, mode="a"):
+    """Starts the app in dev mode from the project folder (the README's camel run, with --source-dir so a file the
+    model adds later is part of it), and waits for its routes; its console goes to camel-run.out (appended on a
+    restart). Answers the process."""
+    out_path = os.path.join(OUT, "camel-run.out")
+    started = read(out_path).count("Routes startup") if mode == "a" else 0
+    run_out = open(out_path, mode)
+    # the scan interval camel_run uses since CAMEL-25661; the ? makes it optional, so a Camel without the option
+    # logs a WARN and starts
+    proc = subprocess.Popen(["camel", "run", "--source-dir=" + project, "--dev", "--name=" + name, "--logging-color=false",
+                             "--prop=camel.main.?routesReloadInterval=500"],
+                            stdout=run_out, stderr=subprocess.STDOUT, cwd=project)
+    for _ in range(60):
+        time.sleep(1)
+        if read(out_path).count("Routes startup") > started or proc.poll() is not None:
+            break
+    time.sleep(3)
+    DEV_APP.update({"proc": proc, "project": project, "name": name})
+    return proc
+
+
+def camel_pids():
+    """The PIDs of the running Camel integrations (camel ps)."""
+    out = subprocess.run(["camel", "ps", "--json"], capture_output=True, text=True).stdout
+    try:
+        return {str(p.get("pid")) for p in json.loads(out[out.index("["):])}
+    except (ValueError, AttributeError):
+        return set()
+
+
+def run_test(project, test_file, name, sid, log):
+    """test_run: runs `camel test run <file>` in the project folder, as a person runs the Citrus test of an example,
+    and answers whether it passed. The test starts the integration itself (its camel jbang run action), on the port of
+    the app in dev mode, so the dev app is stopped first and started again afterwards, as a person would do it. An
+    integration that the test left running (it failed before its own stop) is stopped, and a test that hangs is
+    killed after TEST_TIMEOUT seconds, so nothing stays behind. The console of the test goes to step<n>.test-run.out."""
+    t0 = time.time()
+    proc = DEV_APP.get("proc")
+    # camel stop waits until the process is gone, and the app is a child of the harness: it stays a zombie until the
+    # harness reaps it, so camel stop would wait out its own 60 s. Stop it, reap it, and then camel stop returns
+    stop = subprocess.Popen(["camel", "stop", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if proc is not None:
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    try:
+        stop.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        stop.kill()
+    before = camel_pids()
+    out_path = os.path.join(OUT, f"step{sid}.test-run.out")
+    rc = None
+    with open(out_path, "w") as out:
+        test = subprocess.Popen(["camel", "test", "run", test_file], cwd=project, stdout=out, stderr=subprocess.STDOUT,
+                                start_new_session=True)
+        try:
+            rc = test.wait(timeout=TEST_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            os.killpg(test.pid, signal.SIGTERM)
+            try:
+                test.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                os.killpg(test.pid, signal.SIGKILL)
+    left = sorted(camel_pids() - before)
+    for pid in left:
+        subprocess.run(["camel", "stop", pid], capture_output=True)
+    # until they are gone (the app's port with them), else killed
+    deadline = time.time() + 30
+    while time.time() < deadline and camel_pids() - before:
+        time.sleep(1)
+    for pid in camel_pids() - before:
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+        except (OSError, ValueError):
+            pass
+    text = re.sub(r"\x1b\[[0-9;]*m", "", read(out_path))   # without the colours of the console
+    summary = re.findall(r"Total tests run: \d+, Passes: \d+, Failures: \d+, Skips: \d+", text)
+    # passed: the exit code and the summary agree; a test file that does not load fails with exit code 1
+    passed = rc == 0 and bool(summary) and re.search(r"Passes: [1-9]\d*, Failures: 0", summary[-1]) is not None
+    failure = [m.strip() for m in re.findall(r"(?:Caused by|ValidationException|CitrusRuntimeException|ERROR)[^\n]*", text)][:3]
+    start_dev_app(project, name)
+    info = {"file": test_file, "exit": rc, "passed": passed, "summary": summary[-1] if summary else None,
+            "failure": failure, "seconds": round(time.time() - t0, 1), "left_running": left}
+    print(f"step{sid}: camel test run {test_file} -> exit {rc}, {info['summary']}, {info['seconds']}s"
+          + (f", stopped {left}" if left else ""), file=log, flush=True)
+    return info
+
+
+def score(step, project, cfg, mcp, name, before, log=None):
     chk = step["check"]
     route = read(os.path.join(project, cfg["route_file"])); props = read(os.path.join(project, cfg.get("props_file", "application.properties")))
     result = {"file_ok": True, "props_ok": True, "log_ok": True, "errors": 0}
@@ -641,8 +738,15 @@ def score(step, project, cfg, mcp, name, before):
     errors_fine = result["errors"] == 0 or bool(chk.get("errors_ok"))
     if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
         errors_fine = False
+    # test_run: the Citrus test the step asks for passes with `camel test run` (run last: the app is stopped while the
+    # test runs, and the checks above are on the app the model left running)
+    if chk.get("test_run") and DEV_APP:
+        result["test_run"] = run_test(project, chk["test_run"], name, step["id"], log)
+        result["test_ok"] = result["test_run"]["passed"]
+    elif chk.get("test_run"):
+        result["test_ok"] = False
     # ok_final: the end state is right (files and log), whatever happened on the way; ok also needs no errors
-    result["ok_final"] = result["file_ok"] and result["props_ok"] and result["log_ok"]
+    result["ok_final"] = result["file_ok"] and result["props_ok"] and result["log_ok"] and result.get("test_ok", True)
     result["ok"] = result["ok_final"] and errors_fine
     # ok_lastwrite: the end state is right and the model's last version logged no errors; the errors of attempts it
     # fixed on the way do not count (they do in ok). Without a write in the step it is the same as ok
@@ -708,17 +812,7 @@ def main():
         # later is part of the app (the MCP camel_run starts with the files of the moment, and a restart replays
         # them); the MCP tools find the integration by name
         name = os.path.basename(project)
-        run_out = open(os.path.join(OUT, "camel-run.out"), "w")
-        # the scan interval camel_run uses since CAMEL-25661; the ? makes it optional, so a Camel without the option
-        # logs a WARN and starts
-        proc = subprocess.Popen(["camel", "run", "--source-dir=" + project, "--dev", "--name=" + name, "--logging-color=false",
-                                 "--prop=camel.main.?routesReloadInterval=500"],
-                                stdout=run_out, stderr=subprocess.STDOUT, cwd=project)
-        for _ in range(60):
-            time.sleep(1)
-            if "Routes startup" in read(os.path.join(OUT, "camel-run.out")) or proc.poll() is not None:
-                break
-        time.sleep(3)
+        proc = start_dev_app(project, name, "w")
         print(f"camel run --source-dir -> pid {proc.pid} name {name}", file=log, flush=True)
     else:
         # start the integration once, in dev mode, through the MCP server
@@ -850,7 +944,7 @@ def main():
                     name = data["name"]
                 time.sleep(8)
             try:
-                res, route_after, props_after = score(step, project, cfg, mcp, name, before)
+                res, route_after, props_after = score(step, project, cfg, mcp, name, before, log)
             except Exception as e:
                 # a check that cannot be read fails the step instead of ending the example (r21n-7 ended after step 1)
                 print(f"step{sid}: scoring failed: {e!r}", file=log, flush=True)
@@ -957,6 +1051,8 @@ def main():
                 peer.wait(timeout=20)
             except Exception:
                 peer.kill()
+        # the app may have been started again by a test_run step: the process to wait for is the last one
+        proc = DEV_APP.get("proc", proc)
         if proc is not None:
             try:
                 proc.wait(timeout=20)

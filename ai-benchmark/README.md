@@ -198,6 +198,7 @@ optional:
 | `files` | `{name: regex}`: another project file matches; found by name anywhere in the project if not at that path |
 | `server_files` | `{path: regex}`: a file on the server of the `infra_seed` service matches; a path with `*` is a glob (`**/done/x.csv`), and any match counts |
 | `server_not_files` | `[path]`: none of these files is on the server any more (a batch the route moved away) |
+| `test_run` | a test file of the project (`test/orders.citrus.it.yaml`): `camel test run <file>` in the project folder passes (exit code 0, and the summary has passes and no failures). The test starts the integration itself on the app's port, so the app in dev mode is stopped while the test runs and started again after it; an integration the test left running is stopped, and a test that runs longer than `BENCH_TEST_TIMEOUT` seconds (300) is killed. Its console goes to `step<n>.test-run.out` |
 | `log_regex` | a regex or a list of them; every one matches an INFO or WARN record (`min_log` times, default 1) |
 | `log_not_regex` | no record logged after this step's reload matches |
 | `interval_min` | the first two records matching `log_regex` are at least this many seconds apart |
