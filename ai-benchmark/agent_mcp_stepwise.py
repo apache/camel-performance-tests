@@ -37,6 +37,10 @@ NUM_PREDICT = int(os.environ.get("BENCH_NUM_PREDICT", "8192"))
 LOG_WINDOW = int(os.environ.get("BENCH_LOG_WINDOW", "400"))
 # round 2: BENCH_REFERENCE=1 skips the model and applies each step's reference files instead, to check the steps file itself
 REFERENCE = os.environ.get("BENCH_REFERENCE") == "1"
+# BENCH_NEGATIVE=1, the negative pass: skips the model and writes nothing, so each step is scored on what the step before
+# it left (the checkpoint puts that step's reference in place, the start files for step 1). Every step must fail: a check
+# that passes here passes without the work the step asks for
+NEGATIVE = os.environ.get("BENCH_NEGATIVE") == "1"
 # CAMEL-24834: before each step, ask camel_runtime_tool_groups what the app has and offer its groups' tools and guidance,
 # as the AI panel of the camel-jbang views does for a local model (the tool list changes only when the fingerprint does)
 TOOL_GROUPS = os.environ.get("BENCH_TOOL_GROUPS") == "1"
@@ -626,7 +630,7 @@ def main():
     try:
         for step in cfg["steps"]:
             sid = step["id"]
-            if TOOL_GROUPS and not REFERENCE and not BARE:
+            if TOOL_GROUPS and not REFERENCE and not NEGATIVE and not BARE:
                 data, raw = jcall(mcp, "camel_runtime_tool_groups", {"nameOrPid": name})
                 if isinstance(data, dict) and data.get("fingerprint") != groups_fp:
                     groups_fp = data.get("fingerprint")
@@ -650,7 +654,9 @@ def main():
                 # the reference files stand in for the model's edits; the checks then score the steps file itself
                 writes += apply_reference(project, cfg, step.get("reference") or {}, mcp, name, before)
                 answer = "(reference)"
-            while not REFERENCE:
+            elif NEGATIVE:
+                answer = "(negative pass: nothing written)"
+            while not REFERENCE and not NEGATIVE:
                 try:
                     try:
                         data, secs = ollama_chat(messages, tools)

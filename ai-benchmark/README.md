@@ -144,6 +144,7 @@ scores each step before sending the next.
 ./start-server.sh                       # set CAMEL_MCP_JAR to measure a locally built camel-jbang-mcp
 python3 gen_stepwise.py                 # writes steps-ladder/<name>.json and stepwise-ladder/<name>/ for every example
 BENCH_REFERENCE=1 ./run-stepwise-ladder.sh ref       # the reference pass: must pass every step before a model run
+BENCH_NEGATIVE=1 ./run-stepwise-ladder.sh neg        # the negative pass: nothing written, so every step must fail
 ./run-stepwise-ladder.sh s1 5           # five runs: stepwise/s1-1 .. s1-5, then the summary table
 ./run-http.sh h1 3                      # only the four HTTP rungs: stock-api, http-client, openapi-server/-client
 BENCH_ONLY="transform-xslt route-aggregator" ./run-stepwise-ladder.sh x 1   # any subset, names as in steps-ladder/
@@ -222,5 +223,7 @@ calls, refused writes, seconds, tokens, the model's closing answer), `run.log` (
   and a reload that logs writes again. Output belongs under `stepwise/`, which is outside the projects.
 - Run the reference pass after any change to `gen_stepwise.py`, a seed, or Camel: a reference that fails is a
   harness or Camel bug, not a model result.
+- Run the negative pass for a new or changed example: each step is scored on the reference of the step before it
+  (the start files for step 1), and a step that passes there has a check that does not need the step's work.
 - Do not share one MCP server between two runs, a reference pass included: the step logs and error counts of one get
   mixed into the other.

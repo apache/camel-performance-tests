@@ -2,6 +2,7 @@
 # Runs the round-2 stepwise set: every steps-ladder/<name>.json, each from a fresh project, k times.
 # Usage: run-stepwise-ladder.sh <tag> [k]      Results: stepwise/<tag>-<i>/<name>/ (results.json, run.log, traces)
 # BENCH_REFERENCE=1 applies the reference files instead of asking the model (the reference pass of the steps files).
+# BENCH_NEGATIVE=1 writes nothing, so each step is scored on the step before it (the negative pass: every step must fail).
 # BENCH_ONLY="<name> [<name> ...]" runs only those examples.
 # BENCH_STEPS_DIR=steps-new runs the new set (2026-10-18) instead of the ladder in steps-ladder/.
 set -u
