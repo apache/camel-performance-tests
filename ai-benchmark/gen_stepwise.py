@@ -1258,6 +1258,76 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- test/citrus-orders (a Citrus YAML test, run with camel test run)
+# Claus, Nov 2: the model writes the Citrus test of a working order API, as the tests of camel-jbang-examples are written
+# (test/<name>.citrus.it.yaml: camel jbang run, camel jbang verify of a log line, http client cases). The test_run check
+# runs `camel test run` in the project; the harness stops the app in dev mode around it, since the test starts the
+# integration itself on the same port. The project starts with the sample test of `camel test init`: camel_write_file
+# validates every .yaml file as Camel YAML DSL and refuses a new Citrus test ("object found, array expected"), while it
+# lets a write to an existing file through when the file had that problem before.
+CO = "orders.camel.yaml"
+CO_TEST = "test/orders.citrus.it.yaml"
+CO_SAMPLE_TEST = ("name: orders.citrus.it\nauthor: Citrus\nstatus: FINAL\ndescription: Sample test in YAML\nvariables:\n"
+                  "  - name: message\n    value: Citrus rocks!\nactions:\n  - echo:\n      message: \"${message}\"\n")
+CO_REST = ("- rest:\n    path: /orders\n    post:\n      - id: createOrder\n        description: Creates an order\n"
+           "        to:\n          uri: direct:create-order\n")
+def co_reject(cond, error, ind="              "):
+    i = ind
+    return (i + "- expression:\n" + i + "    simple:\n" + i + "      expression: \"" + cond + "\"\n" + i + "  steps:\n"
+            + set_header("CamelHttpResponseCode", "constant", "\"400\"", i + "    ")
+            + i + "    - setBody:\n" + i + "        expression:\n" + i + "          constant:\n"
+            + i + "            expression: '{\"error\": \"" + error + "\"}'\n")
+def co_state(lines_rule):
+    steps = (UNMARSHAL + set_var("orderId", "${body[orderId]}") + CT_JSON
+             + "        - choice:\n            when:\n" + co_reject("${body[customer]} == null", "an order needs a customer")
+             + (co_reject("${body[lines]} == null || ${body[lines].isEmpty()}", "an order needs at least one line") if lines_rule else "")
+             + "            otherwise:\n              steps:\n"
+             + log("Order ${variable.orderId} accepted for ${body[customer]} with ${body[lines].size()} line(s)", "                ")
+             + set_header("CamelHttpResponseCode", "constant", "\"201\"", "                ")
+             + "                - setBody:\n                    expression:\n                      simple:\n"
+             + "                        expression: '{\"orderId\": \"${variable.orderId}\", \"status\": \"accepted\"}'\n")
+    return CO_REST + "\n" + route("create-order", DIRECT("create-order"), steps)
+def citrus_http(method_path, body, status, error):
+    return ("  - http:\n      client: \"http://localhost:8080\"\n      sendRequest:\n        " + method_path[0] + ":\n"
+            "          path: \"" + method_path[1] + "\"\n          contentType: \"application/json\"\n          body:\n" + body
+            + "  - http:\n      client: \"http://localhost:8080\"\n      receiveResponse:\n        response:\n"
+            "          status: \"" + status + "\"\n"
+            + ("        validate:\n          - jsonPath:\n              - expression: \"$.error\"\n"
+               "                value: \"" + error + "\"\n" if error else ""))
+CO_T1 = ("name: orders-test\ndescription: The order API accepts the sample order and logs it\nactions:\n"
+         "  - camel:\n      jbang:\n        run:\n          integration:\n            name: \"orders\"\n"
+         "            file: \"../orders.camel.yaml\"\n            systemProperties:\n              file: \"../application.properties\"\n"
+         "  - camel:\n      jbang:\n        verify:\n          integration: \"orders\"\n          logMessage: \"(orders) started\"\n"
+         + citrus_http(("POST", "/orders"), "            resource:\n              file: \"../sample-order.json\"\n", "201", None)
+         + "  - camel:\n      jbang:\n        verify:\n          integration: \"orders\"\n"
+         "          logMessage: \"Order ORD-1001 accepted for C-482 with 2 line(s)\"\n")
+CO_T2 = CO_T1 + citrus_http(("POST", "/orders"), "            data: '{\"orderId\": \"ORD-1002\", \"country\": \"DE\", \"lines\": [{\"sku\": \"CAMEL-MUG\", \"qty\": 3, \"price\": 9.50}]}'\n",
+                            "400", "an order needs a customer")
+CO_T3 = CO_T2 + citrus_http(("POST", "/orders"), "            data: '{\"orderId\": \"ORD-1003\", \"customer\": \"C-134\", \"country\": \"US\", \"lines\": []}'\n",
+                            "400", "an order needs at least one line")
+CO_EMPTY = '{"orderId": "ORD-1003", "customer": "C-134", "country": "US", "lines": []}'
+CO_GOOD = '{"orderId": "ORD-1004", "customer": "C-482", "country": "DK", "lines": [{"sku": "CAMEL-MUG", "qty": 1, "price": 9.5}]}'
+EXAMPLES.append({
+    "name": "test-citrus-orders", "route_file": CO, "props_file": "application.properties", "wait_seconds": 4,
+    "seed": "test-citrus-orders", "steps_dir": NEW,
+    "initial": {CO: co_state(False), "application.properties": PORT_PROPS, CO_TEST: CO_SAMPLE_TEST},
+    "steps": [
+        {"request": "Write a Citrus test for the order API in test/orders.citrus.it.yaml, in the Citrus YAML DSL (camel test init made a sample test there). The test runs the integration orders.camel.yaml with application.properties, posts the sample order sample-order.json to POST /orders, and verifies that the integration logs \"Order ORD-1001 accepted for C-482 with 2 line(s)\". After your change the test is run with camel test run test/orders.citrus.it.yaml.",
+         # the sample test passes too: the test must verify the log line (logMessage, as the Citrus camel jbang verify
+         # action names it), and pass
+         "check": {"test_run": CO_TEST, "files": {CO_TEST: "logMessage:\\s*[\"']?Order ORD-1001 accepted for C-482 with 2 line\\(s\\)"}},
+         "reference": {CO_TEST: CO_T1}},
+        {"request": "Add an HTTP case to the test: an order without a customer gets the answer 400 with {\"error\": \"an order needs a customer\"}.",
+         "check": {"test_run": CO_TEST, "files": {CO_TEST: "(?s)(?=.*\\b400\\b)(?=.*an order needs a customer)"}},
+         "reference": {CO_TEST: CO_T2}},
+        {"request": "An order with no lines is accepted today (201), which is a bug. Work test first: add a case to the test where an order whose lines are empty gets the answer 400 with {\"error\": \"an order needs at least one line\"}, then fix the route so that the test passes.",
+         "check": {"test_run": CO_TEST, "file_regex": "at least one line",
+                   "files": {CO_TEST: "(?s)(?=.*\"lines\"\\s*:\\s*\\[\\s*\\])(?=.*an order needs at least one line)"},
+                   "probes": [POST("/orders", CO_EMPTY, 400, "an order needs at least one line"), POST("/orders", CO_GOOD, 201, "accepted")]},
+         "reference": {CO: co_state(True), CO_TEST: CO_T3}},
+    ]})
+
+
 def write_project(ex):
     d = os.path.join(PROJECTS, ex["name"])
     shutil.rmtree(d, ignore_errors=True)
