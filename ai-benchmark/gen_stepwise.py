@@ -1169,7 +1169,7 @@ EXAMPLES.append({
     "seed": "connect-sftp-transfer", "infra": ["sftp"], "infra_seed": {"sftp": "_sftp-server"}, "steps_dir": NEW,
     "initial": {ST: st_s0, "application.properties": "# application properties\n"},
     "steps": [
-        {"request": "The supplier now puts its invoice batches on its SFTP server. Connect to the SFTP server that camel infra started (host localhost, port 2222, user admin, password admin) and download the batches from its folder invoices instead of reading the local inbox. Leave the files on the server for now (noop), and log \"Downloaded ${file:name}\" instead of received.",
+        {"request": "The supplier now puts its invoice batches on its SFTP server. Connect to the SFTP server that camel infra started (host localhost, port 2222, user admin, password admin; it is a test server, so do not keep its host key: useUserKnownHostsFile false) and download the batches from its folder invoices instead of reading the local inbox. Leave the files on the server for now (noop), and log \"Downloaded ${file:name}\" instead of received.",
          # the batches are still on the server: a route that deleted or moved them took the next steps' files away
          "check": {"file_regex": "sftp", "log_regex": ["Downloaded invoices-2026-10-30\\.csv", "Downloaded invoices-2026-10-31\\.csv"],
                    "server_files": {"invoices/invoices-2026-10-30.csv": "INV-3001", "invoices/invoices-2026-10-31.csv": "INV-3003"}},
