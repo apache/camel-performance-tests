@@ -1296,11 +1296,11 @@ def citrus_http(method_path, body, status, error):
             + ("        validate:\n          - jsonPath:\n              - expression: \"$.error\"\n"
                "                value: \"" + error + "\"\n" if error else ""))
 CO_T1 = ("name: orders-test\ndescription: The order API accepts the sample order and logs it\nactions:\n"
-         "  - camel:\n      jbang:\n        run:\n          integration:\n            name: \"orders\"\n"
+         "  - camel:\n      cli:\n        run:\n          integration:\n            name: \"orders\"\n"
          "            file: \"../orders.camel.yaml\"\n            systemProperties:\n              file: \"../application.properties\"\n"
-         "  - camel:\n      jbang:\n        verify:\n          integration: \"orders\"\n          logMessage: \"(orders) started\"\n"
+         "  - camel:\n      cli:\n        verify:\n          integration: \"orders\"\n          logMessage: \"(orders) started\"\n"
          + citrus_http(("POST", "/orders"), "            resource:\n              file: \"../sample-order.json\"\n", "201", None)
-         + "  - camel:\n      jbang:\n        verify:\n          integration: \"orders\"\n"
+         + "  - camel:\n      cli:\n        verify:\n          integration: \"orders\"\n"
          "          logMessage: \"Order ORD-1001 accepted for C-482 with 2 line(s)\"\n")
 CO_T2 = CO_T1 + citrus_http(("POST", "/orders"), "            data: '{\"orderId\": \"ORD-1002\", \"country\": \"DE\", \"lines\": [{\"sku\": \"CAMEL-MUG\", \"qty\": 3, \"price\": 9.50}]}'\n",
                             "400", "an order needs a customer")
