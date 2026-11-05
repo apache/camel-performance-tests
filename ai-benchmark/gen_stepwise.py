@@ -415,7 +415,9 @@ EXAMPLES.append({
          "check": {"file_regex": "marshal", "log_regex": "Invoice INV-2002: \\{\"invoiceId\":\"INV-2002\",\"orderId\":\"ORD-1002\""},
          "reference": {CSV: csv_s4}},
         {"request": "Write each JSON invoice to the outbox directory as a file named after the invoice id, INV-2001.json and so on.",
-         "check": {"file_regex": "outbox", "files": {"outbox/INV-2001.json": "\"invoiceId\":\"INV-2001\"", "outbox/INV-2003.json": "INV-2003"}, "log_regex": "Invoice INV-2003"},
+         # the files are the work of the step. The log line is step 3's, and the request does not ask to keep it: 7 runs
+         # (r18 to r27l) replaced it with the to:, wrote the right files with no errors, and failed on the log alone
+         "check": {"file_regex": "outbox", "files": {"outbox/INV-2001.json": "\"invoiceId\":\"INV-2001\"", "outbox/INV-2003.json": "INV-2003"}},
          "reference": {CSV: csv_s5}},
     ]})
 
