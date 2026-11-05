@@ -197,6 +197,24 @@ def began_before(e, t):
     return ts - elapsed < (t - 0.5) * 1000
 
 
+def records_since(errs, t, count):
+    """The records of the error file that came after a snapshot of count records taken at t (epoch seconds): the ones
+    that failed at or after t, with half a second to spare. The file lists the newest first and keeps only the newest 3
+    of a kind (route, node and exception type), so the count alone tells neither which records are new nor how many
+    (until Nov 5 2026 errs[count:] took the oldest ones). Without t, or for a record without its time, the newest
+    len(errs) - count."""
+    fresh = max(0, len(errs) - count)
+    answer = []
+    for i, e in enumerate(errs):
+        ts = e.get("timestamp") if isinstance(e, dict) else None
+        if t is not None and isinstance(ts, (int, float)):
+            if ts >= (t - 0.5) * 1000:
+                answer.append(e)
+        elif i < fresh:
+            answer.append(e)
+    return answer
+
+
 INFRA_TIMEOUT = int(os.environ.get("BENCH_INFRA_TIMEOUT", "300"))    # seconds to wait for `camel infra` services
 # BENCH_FAST=1: wait for what a step checks instead of fixed sleeps (Oct 14 2026: 22 of a run's 55 minutes were
 # fixed sleeps, while dev mode now reloads within ~2 s of a write, CAMEL-25032)
@@ -745,15 +763,19 @@ def score(step, project, cfg, mcp, name, before, log=None):
     data, _ = jcall(mcp, "camel_get_errors", {"name": name})
     if isinstance(data, dict):
         errs = data.get("errors", []) or []
+        count = before.get("error_count", 0)
+        # the error records carry their time (epoch millis): only the ones at or after the step began
+        new = records_since(errs, began if FAST else None, count)
         if FAST and began is not None:
-            # the error records carry their time (epoch millis): only the ones at or after the step began
-            new = errs[before.get("error_count", 0):]
-            result["errors"] += sum(1 for e in new if not isinstance(e, dict) or not isinstance(e.get("timestamp"), (int, float))
-                                    or e["timestamp"] >= (began - 0.5) * 1000)
-        else:
-            result["errors"] += max(0, len(errs) - before.get("error_count", 0))
+            # the count of before Nov 5 2026, which took errs[count:] (the oldest records), kept to compare a series
+            # with the ones before it: a step whose errors had no ERROR line in the log could count none of them
+            result["errors_old_slice"] = result["errors"] + sum(
+                1 for e in errs[count:] if not isinstance(e, dict) or not isinstance(e.get("timestamp"), (int, float))
+                or e["timestamp"] >= (began - 0.5) * 1000)
+        result["errors"] += len(new)
         # what they were, not just how many: a step that fails on errors alone cannot be judged from a count
-        result["error_detail"] = [str(e)[:300] for e in errs[before.get("error_count", 0):]][:5]
+        result["error_detail"] = [str(e)[:300] for e in new][:5]
+    result.setdefault("errors_old_slice", result["errors"])
     diff = list(difflib.unified_diff(before["route"].splitlines(), route.splitlines(), lineterm="", n=0))
     diffp = list(difflib.unified_diff(before["props"].splitlines(), props.splitlines(), lineterm="", n=0))
     result["changed_lines"] = sum(1 for l in diff + diffp if (l.startswith("+") or l.startswith("-")) and not l.startswith(("+++", "---")))
@@ -771,6 +793,11 @@ def score(step, project, cfg, mcp, name, before, log=None):
     # ok_final: the end state is right (files and log), whatever happened on the way; ok also needs no errors
     result["ok_final"] = result["file_ok"] and result["props_ok"] and result["log_ok"] and result.get("test_ok", True)
     result["ok"] = result["ok_final"] and errors_fine
+    # ok with the count of before Nov 5 2026 (errors_old_slice), to tell what the new count changes in a series
+    old_fine = result["errors_old_slice"] == 0 or bool(chk.get("errors_ok"))
+    if chk.get("min_errors") and result["errors_old_slice"] < chk["min_errors"]:
+        old_fine = False
+    result["ok_old_slice"] = result["ok_final"] and old_fine
     # ok_lastwrite: the end state is right and the model's last version logged no errors; the errors of attempts it
     # fixed on the way do not count (they do in ok). Without a write in the step it is the same as ok
     last = before.get("last_write")
@@ -780,13 +807,13 @@ def score(step, project, cfg, mcp, name, before, log=None):
                     and error_key(l) not in seen)
         if isinstance(data, dict):
             errs = data.get("errors", []) or []
-            # the records that came after the last write are the newest ones (by uid; the file lists them newest first).
-            # A record whose exchange began before the last write that the app reloaded is from the version before it,
-            # even when it failed after it: a request in flight that the reload cut off (r27n jms s3, 3 runs). Its record
-            # reached the error file after the write's snapshot, as the app writes that file about once a second. A
-            # record that does not tell when its exchange began counts, and so do the ERROR records of the log
-            newest = sorted(errs, key=lambda e: (e.get("uid") or 0) if isinstance(e, dict) else 0, reverse=True)
-            newest = newest[:max(0, len(errs) - max(last[1], before.get("error_count", 0)))]
+            # the records that failed after the last write (by their time, see records_since). A record whose exchange
+            # began before the last write that the app reloaded is from the version before it, even when it failed after
+            # it: a request in flight that the reload cut off (r27n jms s3, 3 runs). Its record reached the error file
+            # after the write's snapshot, as the app writes that file about once a second. A record that does not tell
+            # when its exchange began counts, and so do the ERROR records of the log
+            newest = records_since(errs, before.get("last_write_sent") if FAST else None,
+                                   max(last[1], before.get("error_count", 0)))
             older = sum(1 for e in newest if began_before(e, before.get("last_write_at")))
             after += len(newest) - older
     else:
@@ -962,6 +989,7 @@ def main():
                             refused += 1
                         elif fn["name"] in ("camel_write_file", "camel_edit_file"):
                             before["last_write"] = error_snapshot(mcp, name)
+                            before["last_write_sent"] = t_call
                             # when the app's current version began (ok_lastwrite: an exchange that began before it ran on
                             # the version before). Only a write that the app reloaded starts a version
                             if reloaded(out):

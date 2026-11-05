@@ -14,6 +14,8 @@ names = sorted(os.path.splitext(f)[0] for f in os.listdir(steps_dir) if f.endswi
 print(f"| example | steps | passes per step ({' '.join(tags)}) | all steps passed | last version right | final state right |")
 print("|---|---|---|---|---|---|")
 total = 0; possible = 0; clean = 0; final = 0; lastw = 0
+# steps passed with the error count of before Nov 5 2026 (ok_old_slice), in the runs that recorded it
+old = 0; old_possible = 0
 missing = []
 for n in names:
     per = []; runs = []
@@ -38,9 +40,14 @@ for n in names:
     allok = sum(1 for r in runs if r and all(x["ok"] for x in r)); clean += allok
     fin = sum(1 for r in runs for x in r if x.get("ok_final", x["ok"])); final += fin
     lw = sum(1 for r in runs for x in r if x.get("ok_lastwrite", x["ok"])); lastw += lw
+    old += sum(1 for r in runs for x in r if x.get("ok_old_slice"))
+    old_possible += sum(1 for r in runs for x in r if "ok_old_slice" in x)
     n_steps = sum(len(r) for r in runs)
     print(f"| {n} | {steps} | {' '.join(cols)} | {allok}/{len(runs)} | {lw}/{n_steps} | {fin}/{n_steps} |")
 print(f"\nsteps passed: {total} of {possible}; last version right: {lastw} of {possible}; final state right: {final} of"
       f" {possible}; runs with every step passed: {clean}")
+if old_possible:
+    # the error file lists the newest records first, and the count before Nov 5 2026 took the oldest ones
+    print(f"with the error count of before Nov 5 2026: {old} of {old_possible} steps passed")
 for m in missing:
     print(f"WARNING: {m}")
