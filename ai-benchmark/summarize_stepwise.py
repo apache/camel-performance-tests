@@ -4,7 +4,8 @@
 A step passes (ok) when its files, log and probes are right and it logged no new errors; final state right (ok_final)
 leaves the errors out: a model that tests its own app (the HTTP request tool) causes errors on the way to a right
 answer, which ok counts against it. Last version right (ok_lastwrite) is in between: the final state is right and no
-errors were logged after the model's last accepted write; runs before it was recorded count it as ok."""
+errors were logged after the model's last accepted write, but for those of exchanges that began before that write (since
+Nov 5 2026: they ran on the version before); runs before it was recorded count it as ok."""
 import json, os, sys
 tag = sys.argv[1]; k = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 tags = [f"{tag}-{i}" for i in range(1, k + 1)] if k > 1 else [tag]

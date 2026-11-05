@@ -174,6 +174,27 @@ def error_key(l):
     return (l.get("time") or l.get("timestamp") or "") + "|" + (l.get("message") or l.get("msg") or "")[:120]
 
 
+def reloaded(out):
+    """Whether a write's answer says the app reloaded what it wrote: not an unchanged edit, a failed reload, or a file
+    the app does not reload."""
+    try:
+        return (json.loads(out).get("reload") or {}).get("status") == "reloaded"
+    except Exception:
+        return False
+
+
+def began_before(e, t):
+    """Whether the exchange of an error record began before t (epoch seconds), with half a second to spare as for the
+    step's start: the record's time (epoch millis, when it failed) less how long the exchange had run. False when the
+    record does not tell."""
+    if t is None or not isinstance(e, dict):
+        return False
+    ts, elapsed = e.get("timestamp"), e.get("elapsed")
+    if not isinstance(ts, (int, float)) or not isinstance(elapsed, (int, float)):
+        return False
+    return ts - elapsed < (t - 0.5) * 1000
+
+
 INFRA_TIMEOUT = int(os.environ.get("BENCH_INFRA_TIMEOUT", "300"))    # seconds to wait for `camel infra` services
 # BENCH_FAST=1: wait for what a step checks instead of fixed sleeps (Oct 14 2026: 22 of a run's 55 minutes were
 # fixed sleeps, while dev mode now reloads within ~2 s of a write, CAMEL-25032)
@@ -751,14 +772,26 @@ def score(step, project, cfg, mcp, name, before, log=None):
     # ok_lastwrite: the end state is right and the model's last version logged no errors; the errors of attempts it
     # fixed on the way do not count (they do in ok). Without a write in the step it is the same as ok
     last = before.get("last_write")
+    older = 0
     if last is not None:
         after = sum(1 for l in lines if isinstance(l, dict) and lvl(l) == "ERROR" and error_key(l) not in last[0]
                     and error_key(l) not in seen)
         if isinstance(data, dict):
-            after += max(0, len(data.get("errors", []) or []) - max(last[1], before.get("error_count", 0)))
+            errs = data.get("errors", []) or []
+            # the records that came after the last write are the newest ones (by uid; the file lists them newest first).
+            # A record whose exchange began before the last write that the app reloaded is from the version before it,
+            # even when it failed after it: a request in flight that the reload cut off (r27n jms s3, 3 runs). Its record
+            # reached the error file after the write's snapshot, as the app writes that file about once a second. A
+            # record that does not tell when its exchange began counts, and so do the ERROR records of the log
+            newest = sorted(errs, key=lambda e: (e.get("uid") or 0) if isinstance(e, dict) else 0, reverse=True)
+            newest = newest[:max(0, len(errs) - max(last[1], before.get("error_count", 0)))]
+            older = sum(1 for e in newest if began_before(e, before.get("last_write_at")))
+            after += len(newest) - older
     else:
         after = result["errors"]
     result["errors_after_last_write"] = after
+    # how many errors after the last write were left out, as their exchange began before it
+    result["errors_older_version"] = older
     lastwrite_fine = after == 0 or bool(chk.get("errors_ok"))
     if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
         lastwrite_fine = False
@@ -927,6 +960,10 @@ def main():
                             refused += 1
                         elif fn["name"] in ("camel_write_file", "camel_edit_file"):
                             before["last_write"] = error_snapshot(mcp, name)
+                            # when the app's current version began (ok_lastwrite: an exchange that began before it ran on
+                            # the version before). Only a write that the app reloaded starts a version
+                            if reloaded(out):
+                                before["last_write_at"] = t_call
                         chars = len(out)
                         out = out[:CATALOG_RESULT_CAP if fn["name"] == "camel_catalog_doc" else TOOL_RESULT_CAP]
                         trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:TRACE_RESULT_CHARS], "chars": chars, "shown": len(out)}) + "\n"); trace.flush()
