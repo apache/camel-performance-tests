@@ -49,9 +49,11 @@ TOOL_GROUPS = os.environ.get("BENCH_TOOL_GROUPS") == "1"
 BARE = os.environ.get("BENCH_BARE") == "1"
 TOOL_RESULT_CAP = 6000
 # camel_catalog_doc answers are cut later: at 6000 the model never saw most of a component's options (file: include,
-# move and sortBy sit past 11000 characters), and r14b asked for all of them 75 times to get the same first 6000. 16000
-# is the longest answer camel_catalog_doc gives since CAMEL-25541. BENCH_CATALOG_CAP=6000 gives the r1-r14 behaviour
-CATALOG_RESULT_CAP = int(os.environ.get("BENCH_CATALOG_CAP", "16000"))
+# move and sortBy sit past 11000 characters), and r14b asked for all of them 75 times to get the same first 6000. 18000
+# is the longest answer camel_catalog_doc gives since CAMEL-24961 (Oct 23 2026; 16000 since CAMEL-25541): the 16000
+# here cut 53 answers of r27n, among them the aws2-s3 one of 17,705 that r27n-4 asked for 21 times.
+# BENCH_CATALOG_CAP=6000 gives the r1-r14 behaviour, 16000 that of Oct 16 to Nov 5 2026
+CATALOG_RESULT_CAP = int(os.environ.get("BENCH_CATALOG_CAP", "18000"))
 
 SHARED = ["camel_catalog_doc", "camel_catalog_find", "camel_catalog_sample", "camel_validate_source", "camel_get_files", "camel_write_file",
           "camel_edit_file",
