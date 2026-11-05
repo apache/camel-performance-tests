@@ -675,7 +675,8 @@ EXAMPLES.append({
     "initial": {HC: hc_s1, "application.properties": PORT_PROPS},
     "steps": [
         {"request": "Split the order over its lines (${body[lines]}) and for each line call the stock service over HTTP with a GET on http://localhost:8080/stock/CAMEL-MUG (a fixed SKU for now; set the body to null first, a GET sends no body) and log the response as \"Stock answer: ${body}\".",
-         "check": {"file_regex": "http://localhost:8080/stock", "log_regex": "Stock answer: \\{\"sku\":\"CAMEL-MUG\",\"qty\":42\\}"},
+         # Camel takes http:localhost:8080/... too, without the // (r27l-3: the log was right, and only this check failed)
+         "check": {"file_regex": "http:(//)?localhost:8080/stock\\b", "log_regex": "Stock answer: \\{\"sku\":\"CAMEL-MUG\",\"qty\":42\\}"},
          "reference": {HC: hc_s2}},
         {"request": "Call the stock service for the line's own SKU: keep the order id, the line's sku and its qty in variables orderId, sku and needed before the call (headers would travel on the HTTP request), build the URI per line with toD as http://localhost:8080/stock/${variable.sku}, unmarshal the JSON answer and log \"${variable.orderId}: ${variable.sku} x ${variable.needed}, ${body[qty]} in stock\".",
          "check": {"file_regex": "toD", "log_regex": ["ORD-1001: CAMEL-TSHIRT x 2, 120 in stock", "ORD-1003: CAMEL-CAP x 1, 0 in stock"]},
