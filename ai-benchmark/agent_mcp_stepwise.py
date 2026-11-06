@@ -254,13 +254,60 @@ SERVER_INSTRUCTIONS = os.environ.get("BENCH_SERVER_INSTRUCTIONS") == "1"
 INFRA_HOME = {}
 
 
-def infra_start(services, seeds=None):
+def infra_running():
+    """{pid: alias} of the running camel infra services (camel infra ps)."""
+    out = subprocess.run(["camel", "infra", "ps", "--json"], capture_output=True, text=True).stdout
+    try:
+        return {str(r.get("pid")): r.get("alias") for r in json.loads(out[out.index("["):])}
+    except (ValueError, AttributeError):
+        return {}
+
+
+# the infra services the harness started, {alias: pid}: the harness stops only those, at the next pass and when the run
+# is over (run-stepwise-ladder.sh). A service that another session runs on this machine is not one of them
+INFRA_STARTED = os.path.join(HERE, "stepwise", "infra-started.json")
+
+
+def infra_started():
+    try:
+        with open(INFRA_STARTED) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def infra_save(started):
+    os.makedirs(os.path.dirname(INFRA_STARTED), exist_ok=True)
+    with open(INFRA_STARTED, "w") as f:
+        json.dump(started, f)
+
+
+def infra_stop_started(aliases=None):
+    """Stops the infra services the harness started (all, or those of the aliases) that still run, by their PID, and
+    forgets them. Answers the aliases it stopped."""
+    started, running, stopped = infra_started(), infra_running(), []
+    for alias, pid in list(started.items()):
+        if aliases is not None and alias not in aliases:
+            continue
+        if running.get(str(pid)) == alias:
+            subprocess.run(["camel", "infra", "stop", str(pid)], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stopped.append(alias)
+        del started[alias]
+    infra_save(started)
+    return stopped
+
+
+def infra_start(services, seeds=None, log=None):
     """Start the services the example needs with `camel infra run <svc> --background` and wait until each answers.
 
     Stopped first, so every pass starts against an empty database. A service kept running between passes would carry
     its rows over, and then a step that changes a row passes on what the pass before it left rather than on the work
     of the model: step 3 sets C-207 to NL, and the next pass would find it already NL. Postgres takes about 80 s to
     come up, which is the price of that. The runner stops them when the whole run is over.
+
+    Only a service the harness started is stopped: one that another session runs already is used as it is and left
+    running, as a second one would not get its ports (the pass then starts against what that service holds).
 
     seeds: {service: folder under seed/} for a service that serves files (sftp): the folder is copied to infra-<svc>/
     in the pass's output folder, and the service is started in it, so it serves a fresh copy in every pass.
@@ -269,10 +316,15 @@ def infra_start(services, seeds=None):
     `camel infra run aws s3`; camel infra get and stop know the service by its alias (aws) only.
     """
     seeds = seeds or {}
+    infra_stop_started([svc.split()[0] for svc in services])
+    running = infra_running()
+    others = [svc for svc in services if svc.split()[0] in running.values()]
+    if others and log:
+        print(f"camel infra: {', '.join(others)} runs already, not started by the harness: used as it is",
+              file=log, flush=True)
     for svc in services:
-        subprocess.run(["camel", "infra", "stop", svc.split()[0]], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    for svc in services:
+        if svc in others:
+            continue
         cwd = HERE
         if seeds.get(svc):
             cwd = os.path.join(OUT, "infra-" + svc.replace(" ", "-"))
@@ -298,6 +350,13 @@ def infra_start(services, seeds=None):
             time.sleep(5)
         else:
             data[svc] = {"error": f"{svc} did not come up within {INFRA_TIMEOUT}s"}
+    # the PIDs of the ones it started, to stop those and only those
+    started, now = infra_started(), infra_running()
+    for svc in services:
+        pids = [pid for pid, alias in now.items() if alias == svc.split()[0] and pid not in running]
+        if svc not in others and pids:
+            started[svc.split()[0]] = pids[0]
+    infra_save(started)
     return data
 
 
@@ -610,13 +669,50 @@ def start_dev_app(project, name, mode="a"):
     return proc
 
 
-def camel_pids():
-    """The PIDs of the running Camel integrations (camel ps)."""
+def harness_pids():
+    """The PIDs of the running Camel apps of the harness (camel ps): the ones that run from a folder of it, as the dev
+    app, the peer, the apps the model starts with camel_run (in the project) and the integrations a Citrus test starts
+    do. Another session's apps run from its own folders and are left alone: on Nov 6 run_test stopped chaosdemo of
+    another session, as it then stopped every app that started while a test ran."""
     out = subprocess.run(["camel", "ps", "--json"], capture_output=True, text=True).stdout
     try:
-        return {str(p.get("pid")) for p in json.loads(out[out.index("["):])}
+        pids = [str(p.get("pid")) for p in json.loads(out[out.index("["):])]
     except (ValueError, AttributeError):
         return set()
+    here = os.path.realpath(HERE)
+    return {pid for pid in pids if (os.path.realpath(app_folder(pid) or "/") + os.sep).startswith(here + os.sep)}
+
+
+def app_folder(pid):
+    """The folder a Camel app runs from: runtime.directory of its status file, as camel restart takes it, else its
+    working directory (an app that has not written its status file yet)."""
+    try:
+        with open(os.path.expanduser(f"~/.camel/{pid}-status.json")) as f:
+            folder = (json.load(f).get("runtime") or {}).get("directory")
+        if folder:
+            return folder
+    except Exception:
+        pass
+    out = subprocess.run(["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"], capture_output=True, text=True).stdout
+    m = re.search(r"^n(.+)$", out, re.M)
+    return m.group(1) if m else None
+
+
+def stop_harness_apps(keep=()):
+    """Stops the running Camel apps of the harness but the PIDs in keep, waits until they are gone (their ports with
+    them) and kills what is left after 30 s. Answers the PIDs it stopped."""
+    pids = sorted(harness_pids() - set(keep))
+    for pid in pids:
+        subprocess.run(["camel", "stop", pid], capture_output=True)
+    deadline = time.time() + 30
+    while pids and time.time() < deadline and harness_pids() & set(pids):
+        time.sleep(1)
+    for pid in harness_pids() & set(pids):
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+        except (OSError, ValueError):
+            pass
+    return pids
 
 
 def run_test(project, test_file, name, sid, log):
@@ -640,7 +736,7 @@ def run_test(project, test_file, name, sid, log):
         stop.wait(timeout=30)
     except subprocess.TimeoutExpired:
         stop.kill()
-    before = camel_pids()
+    before = harness_pids()
     out_path = os.path.join(OUT, f"step{sid}.test-run.out")
     rc = None
     with open(out_path, "w") as out:
@@ -654,18 +750,8 @@ def run_test(project, test_file, name, sid, log):
                 test.wait(timeout=15)
             except subprocess.TimeoutExpired:
                 os.killpg(test.pid, signal.SIGKILL)
-    left = sorted(camel_pids() - before)
-    for pid in left:
-        subprocess.run(["camel", "stop", pid], capture_output=True)
-    # until they are gone (the app's port with them), else killed
-    deadline = time.time() + 30
-    while time.time() < deadline and camel_pids() - before:
-        time.sleep(1)
-    for pid in camel_pids() - before:
-        try:
-            os.kill(int(pid), signal.SIGKILL)
-        except (OSError, ValueError):
-            pass
+    # what the test left running of its own, until it is gone (the app's port with it), else killed
+    left = stop_harness_apps(keep=before)
     text = re.sub(r"\x1b\[[0-9;]*m", "", read(out_path))   # without the colours of the console
     summary = re.findall(r"Total tests run: \d+, Passes: \d+, Failures: \d+, Skips: \d+", text)
     # passed: the exit code and the summary agree; a test file that does not load fails with exit code 1
@@ -902,7 +988,7 @@ def main():
         # when the pass ends, so the next pass of the same example does not pay the startup again (about 80 s); the
         # runner stops them when the whole run is over
         t0 = time.time()
-        data = infra_start(cfg["infra"], cfg.get("infra_seed"))
+        data = infra_start(cfg["infra"], cfg.get("infra_seed"), log)
         print(f"camel infra run {' '.join(cfg['infra'])} -> {json.dumps(data)[:300]} ({time.time() - t0:.0f}s)",
               file=log, flush=True)
         for svc, home in INFRA_HOME.items():
@@ -1188,6 +1274,12 @@ def main():
                 proc.wait(timeout=20)
             except Exception:
                 proc.kill()
+        # what else of the harness still runs (an app the model started with camel_run under another name, one a test
+        # left behind), and only that: run-stepwise-ladder.sh stopped every Camel app after an example, also another
+        # session's
+        left = stop_harness_apps()
+        if left:
+            print(f"stopped the harness's apps still running: {left}", file=log, flush=True)
     print(f"DONE passed={sum(1 for r in results if r['ok'])}/{len(results)}", file=log, flush=True)
     log.close()
 

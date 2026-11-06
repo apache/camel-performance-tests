@@ -20,23 +20,18 @@ for i in $(seq 1 "$K"); do
     echo "[$T] $name start $(date +%T)" | tee -a "stepwise-$T.log"
     BENCH_STEPS="$f" BENCH_TAG="$T/$name" python3 agent_mcp_stepwise.py > "stepwise-$T-$name.out" 2>&1
     tail -1 "stepwise/$T/$name/run.log" | tee -a "stepwise-$T.log"
-    # safety net: the harness stops its integration, but an interrupted run leaves one behind, and an app the model
-    # started itself with camel_run, or renamed, is not stopped by name (r5: an orphan held port 8080 for six hours
-    # and failed every later HTTP rung). The machine runs only the benchmark during a series, so stop them all.
-    camel stop > /dev/null 2>&1 || true
+    # safety net: the harness stops its apps, but an interrupted run leaves one behind (r5: an orphan held port 8080 for
+    # six hours and failed every later HTTP rung). Only the harness's apps, the ones that run from its folders, as in
+    # run-stepwise-ladder.sh: another session's apps on this machine stay
+    python3 -c "import agent_mcp_stepwise as h; h.stop_harness_apps()" > /dev/null 2>&1 || true
     sleep 3
     if lsof -nP -iTCP:8080 -sTCP:LISTEN > /dev/null 2>&1; then
       echo "[$T] WARNING port 8080 still in use after $name: $(lsof -nP -iTCP:8080 -sTCP:LISTEN | tail -1)" | tee -a "stepwise-$T.log"
     fi
   done
-  # the services an example needed stay up across its passes; stop them once the run is over
-  for svc in $(python3 -c "
-import glob, json
-out = set()
-for f in glob.glob('steps-kamelet/*.json'):
-    try: out.update(json.load(open(f)).get('infra') or [])
-    except Exception: pass
-print(' '.join(sorted(out)))"); do camel infra stop "$svc" > /dev/null 2>&1 || true; done
+  # the services an example needed stay up across its passes; stop them once the run is over, only those the harness
+  # started (stepwise/infra-started.json): another session may run the same service
+  python3 -c "import agent_mcp_stepwise as h; h.infra_stop_started()" > /dev/null 2>&1 || true
   echo "[$T] DONE $(date +%T)" | tee -a "stepwise-$T.log"
 done
 BENCH_STEPS_DIR=steps-kamelet python3 summarize_stepwise.py "$TAG" "$K"
