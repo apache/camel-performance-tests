@@ -50,7 +50,7 @@
         <quarkus.container-image.name>${project.artifactId}</quarkus.container-image.name>
 
         <camel-k-runtime.version>1.9.0</camel-k-runtime.version>
-        <camel-quarkus.version>2.2.0</camel-quarkus.version>
+        <camel-quarkus.version>3.36.0</camel-quarkus.version>
         <camel-kamelets-catalog.version>main-SNAPSHOT</camel-kamelets-catalog.version>
     </properties>
 
