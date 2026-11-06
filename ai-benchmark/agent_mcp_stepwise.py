@@ -353,6 +353,25 @@ def file_matches(project, fname, rx):
     return bool(re.search(rx, project_file(project, fname) or ""))
 
 
+def test_reads(project, test, rx):
+    """test_data: whether a test holds the regex, or reads a file under its folder that holds it. The test names that
+    file by a path from its own folder, as it names "../sample-order.json" of the project (r28n-5, -6 and -7
+    test-citrus-orders s3 put the empty order in test/empty-lines-order.json and sent it with resource: file:
+    "../test/empty-lines-order.json"; the test passed)."""
+    path = os.path.join(project, test)
+    text = read(path) or ""
+    if re.search(rx, text):
+        return True
+    home = os.path.dirname(path)
+    named = {os.path.normpath(os.path.join(home, w)) for w in re.findall(r"[^\s\"'(),]+", text)}
+    for root, dirs, files in os.walk(home):
+        for f in files:
+            p = os.path.normpath(os.path.join(root, f))
+            if p != os.path.normpath(path) and p in named and re.search(rx, read(p) or ""):
+                return True
+    return False
+
+
 def server_home(cfg):
     """The folder of the example's seeded infra service (the files on its SFTP server), or None."""
     for svc in cfg.get("infra_seed") or {}:
@@ -687,6 +706,11 @@ def score(step, project, cfg, mcp, name, before, log=None):
         # by path, else by name anywhere in the project (a class the model put under src/main/java is the same class);
         # a name with * is a glob
         if not file_matches(project, fname, rx):
+            result["file_ok"] = False
+    # test_data {test: regex}: what a test sends holds the regex, in the test itself or in a file under its folder
+    # that it reads (a request body in resource: file:)
+    for fname, rx in (chk.get("test_data") or {}).items():
+        if not test_reads(project, fname, rx):
             result["file_ok"] = False
     # the files on the server of a seeded infra service: server_files {path or glob: regex} must be there and match,
     # server_not_files [path or glob] must be gone (a batch the route moved away)

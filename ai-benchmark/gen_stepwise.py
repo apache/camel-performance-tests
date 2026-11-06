@@ -1325,8 +1325,11 @@ EXAMPLES.append({
          "check": {"test_run": CO_TEST, "files": {CO_TEST: "(?s)(?=.*\\b400\\b)(?=.*an order needs a customer)"}},
          "reference": {CO_TEST: CO_T2}},
         {"request": "An order with no lines is accepted today (201), which is a bug. Work test first: add a case to the test where an order whose lines are empty gets the answer 400 with {\"error\": \"an order needs at least one line\"}, then fix the route so that the test passes.",
+         # the empty order may be in the test or in a file under test/ that the test reads, as the test of step 1 reads
+         # sample-order.json (r28n-5, -6 and -7 wrote test/empty-lines-order.json; the test passed)
          "check": {"test_run": CO_TEST, "file_regex": "at least one line",
-                   "files": {CO_TEST: "(?s)(?=.*\"lines\"\\s*:\\s*\\[\\s*\\])(?=.*an order needs at least one line)"},
+                   "files": {CO_TEST: "an order needs at least one line"},
+                   "test_data": {CO_TEST: "\"lines\"\\s*:\\s*\\[\\s*\\]"},
                    "probes": [POST("/orders", CO_EMPTY, 400, "an order needs at least one line"), POST("/orders", CO_GOOD, 201, "accepted")]},
          "reference": {CO: co_state(True), CO_TEST: CO_T3}},
     ]})
