@@ -185,16 +185,31 @@ def reloaded(out):
         return False
 
 
-def began_before(e, t):
-    """Whether the exchange of an error record began before t (epoch seconds), with half a second to spare as for the
-    step's start: the record's time (epoch millis, when it failed) less how long the exchange had run. False when the
-    record does not tell."""
+def began_before(e, t, spare=0.5):
+    """Whether the exchange of an error record began before t (epoch seconds), with spare seconds to spare: half a
+    second for a time of the harness's clock, as for the step's start, less for a time the app logged. The record's time
+    (epoch millis, when it failed) less how long the exchange had run. False when the record does not tell."""
     if t is None or not isinstance(e, dict):
         return False
     ts, elapsed = e.get("timestamp"), e.get("elapsed")
     if not isinstance(ts, (int, float)) or not isinstance(elapsed, (int, float)):
         return False
-    return ts - elapsed < (t - 0.5) * 1000
+    return ts - elapsed < (t - spare) * 1000
+
+
+def reload_logged(reloads, t0, t1):
+    """When the app logged the newest routes reload among the reload records of a snapshot (reload_key) that came
+    between t0 and t1 (epoch seconds), as epoch seconds; None when there is none. A record has the time of day only:
+    it is taken as the last such time before t1, across midnight too."""
+    lt = time.localtime(t1)
+    now = lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec + t1 % 1
+    found = []
+    for key in reloads:
+        t, _, m = key.partition("|")
+        x = tod(t)
+        if x is not None and "Routes reloaded summary" in m and t1 - (now - x) % 86400 >= t0:
+            found.append(t1 - (now - x) % 86400)
+    return max(found) if found else None
 
 
 def records_since(errs, t, count):
@@ -832,18 +847,20 @@ def score(step, project, cfg, mcp, name, before, log=None):
         if isinstance(data, dict):
             errs = data.get("errors", []) or []
             # the records that failed after the last write (by their time, see records_since). A record whose exchange
-            # began before the last write that the app reloaded is from the version before it, even when it failed after
-            # it: a request in flight that the reload cut off (r27n jms s3, 3 runs). Its record reached the error file
-            # after the write's snapshot, as the app writes that file about once a second. A record that does not tell
-            # when its exchange began counts, and so do the ERROR records of the log
+            # began before the reload of the last write is from the version before it, even when it failed after it: a
+            # request in flight that the reload cut off (r27n jms s3, 3 runs), or the old route between the write and
+            # its reload (r28l-6 connect-http-client s1). Its record reached the error file after the write's
+            # snapshot, as the app writes that file about once a second. A record that does not tell when its exchange
+            # began counts, and so do the ERROR records of the log
             newest = records_since(errs, before.get("last_write_sent") if FAST else None,
                                    max(last[1], before.get("error_count", 0)))
-            older = sum(1 for e in newest if began_before(e, before.get("last_write_at")))
+            older = sum(1 for e in newest
+                        if began_before(e, before.get("last_write_at"), before.get("last_write_spare", 0.5)))
             after += len(newest) - older
     else:
         after = result["errors"]
     result["errors_after_last_write"] = after
-    # how many errors after the last write were left out, as their exchange began before it
+    # how many errors after the last write were left out, as their exchange began before its reload
     result["errors_older_version"] = older
     lastwrite_fine = after == 0 or bool(chk.get("errors_ok"))
     if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
@@ -1015,9 +1032,18 @@ def main():
                             before["last_write"] = error_snapshot(mcp, name)
                             before["last_write_sent"] = t_call
                             # when the app's current version began (ok_lastwrite: an exchange that began before it ran on
-                            # the version before). Only a write that the app reloaded starts a version
+                            # the version before). Only a write that the app reloaded starts a version, and at the
+                            # reload, not when the write was sent: the old routes run until then (r28l-6
+                            # connect-http-client s1: 3 errors of the old route, 0.48 s before the reload, counted
+                            # against the new one). The answer of the write does not say when, but the snapshot just
+                            # read the log: the time the app logged the reload, compared with the times of its error
+                            # records on the same clock, so with 0.1 s to spare (the new routes start just before the
+                            # record). Not the time the write answered: that comes once the routes logged something or
+                            # 3 s passed (CAMEL-25513), and a handled error of the new version in between would be
+                            # hidden. Without the record, the time the write was sent, with 0.5 s
                             if reloaded(out):
-                                before["last_write_at"] = t_call
+                                at = reload_logged(before["last_write"][2], t_call, time.time())
+                                before["last_write_at"], before["last_write_spare"] = (at, 0.1) if at else (t_call, 0.5)
                         chars = len(out)
                         out = out[:CATALOG_RESULT_CAP if fn["name"] == "camel_catalog_doc" else TOOL_RESULT_CAP]
                         trace.write(json.dumps({"tool": fn["name"], "ms": ms, "args": {k: (v if k != "content" else v[:1500]) for k, v in args.items()}, "result": out[:TRACE_RESULT_CHARS], "chars": chars, "shown": len(out)}) + "\n"); trace.flush()
