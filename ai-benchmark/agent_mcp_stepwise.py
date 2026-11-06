@@ -212,6 +212,11 @@ def reload_logged(reloads, t0, t1):
     return max(found) if found else None
 
 
+def record_times(e):
+    """The uid, timestamp (epoch millis, when it failed) and elapsed (millis its exchange had run) of an error record."""
+    return {k: e.get(k) for k in ("uid", "timestamp", "elapsed")} if isinstance(e, dict) else {}
+
+
 def records_since(errs, t, count):
     """The records of the error file that came after a snapshot of count records taken at t (epoch seconds): the ones
     that failed at or after t, with half a second to spare. The file lists the newest first and keeps only the newest 3
@@ -814,6 +819,9 @@ def score(step, project, cfg, mcp, name, before, log=None):
         result["errors"] += len(new)
         # what they were, not just how many: a step that fails on errors alone cannot be judged from a count
         result["error_detail"] = [str(e)[:300] for e in new][:5]
+        # and when, for every counted record: error_detail keeps 300 characters of 5 records, which cut elapsed off 323
+        # of the 353 records of r28 (the endpoint URIs come first), so a re-score had to guess
+        result["error_times"] = [record_times(e) for e in new]
     result.setdefault("errors_old_slice", result["errors"])
     diff = list(difflib.unified_diff(before["route"].splitlines(), route.splitlines(), lineterm="", n=0))
     diffp = list(difflib.unified_diff(before["props"].splitlines(), props.splitlines(), lineterm="", n=0))
@@ -854,14 +862,19 @@ def score(step, project, cfg, mcp, name, before, log=None):
             # began counts, and so do the ERROR records of the log
             newest = records_since(errs, before.get("last_write_sent") if FAST else None,
                                    max(last[1], before.get("error_count", 0)))
-            older = sum(1 for e in newest
-                        if began_before(e, before.get("last_write_at"), before.get("last_write_spare", 0.5)))
+            old = [began_before(e, before.get("last_write_at"), before.get("last_write_spare", 0.5)) for e in newest]
+            older = sum(old)
             after += len(newest) - older
+            result["errors_after_last_write_times"] = [record_times(e) for e, o in zip(newest, old) if not o]
+            result["errors_older_version_times"] = [record_times(e) for e, o in zip(newest, old) if o]
     else:
         after = result["errors"]
     result["errors_after_last_write"] = after
     # how many errors after the last write were left out, as their exchange began before its reload
     result["errors_older_version"] = older
+    # when the last write was sent and when the version began (epoch seconds), and the seconds to spare of began_before
+    for k in ("last_write_sent", "last_write_at", "last_write_spare"):
+        result[k] = before.get(k)
     lastwrite_fine = after == 0 or bool(chk.get("errors_ok"))
     if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
         lastwrite_fine = False
