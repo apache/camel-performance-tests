@@ -129,6 +129,18 @@
                 </plugins>
             </build>
         </profile>
+        <!-- camel-sanitizer for SanitizerPendingTest (Camel 4.24 or later):
+             mvn test -P jmh,sanitizer -Dcamel.version=4.24.0-SNAPSHOT -Dtest=SanitizerPendingTest -->
+        <profile>
+            <id>sanitizer</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.apache.camel</groupId>
+                    <artifactId>camel-sanitizer</artifactId>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
     </profiles>
 
 </project>
