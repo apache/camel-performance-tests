@@ -217,6 +217,18 @@ def record_times(e):
     return {k: e.get(k) for k in ("uid", "timestamp", "elapsed")} if isinstance(e, dict) else {}
 
 
+def is_handled(e):
+    """Claus, Nov 11 2026: a failure that was handled (a doCatch, the fallback of a circuit breaker, an onException
+    with handled, a dead letter channel) is not an error of the step. The error file marks it (handled, CAMEL-24863)."""
+    return isinstance(e, dict) and e.get("handled") is True
+
+
+def handled_descr(e):
+    """Where a handled failure happened and what it was, short: its location, node and exception."""
+    ex = e.get("exception") if isinstance(e.get("exception"), dict) else {}
+    return f"{e.get('location')} {e.get('nodeId')}: {ex.get('type', '')} {str(ex.get('message', ''))[:120]}".strip()
+
+
 def records_since(errs, t, count):
     """The records of the error file that came after a snapshot of count records taken at t (epoch seconds): the ones
     that failed at or after t, with half a second to spare. The file lists the newest first and keeps only the newest 3
@@ -902,6 +914,13 @@ def score(step, project, cfg, mcp, name, before, log=None):
             result["errors_old_slice"] = result["errors"] + sum(
                 1 for e in errs[count:] if not isinstance(e, dict) or not isinstance(e.get("timestamp"), (int, float))
                 or e["timestamp"] >= (began - 0.5) * 1000)
+        # handled failures are counted apart, so a message that went to a dead letter channel is still seen; with them,
+        # the count of the rule before Nov 11 2026 (errors_with_handled)
+        handled = [e for e in new if is_handled(e)]
+        new = [e for e in new if not is_handled(e)]
+        result["handled_errors"] = len(handled)
+        result["handled_detail"] = [handled_descr(e) for e in handled][:5]
+        result["errors_with_handled"] = result["errors"] + len(new) + len(handled)
         result["errors"] += len(new)
         # what they were, not just how many: a step that fails on errors alone cannot be judged from a count
         result["error_detail"] = [str(e)[:300] for e in new][:5]
@@ -914,7 +933,9 @@ def score(step, project, cfg, mcp, name, before, log=None):
     result["changed_lines"] = sum(1 for l in diff + diffp if (l.startswith("+") or l.startswith("-")) and not l.startswith(("+++", "---")))
     # round 2: a step may expect errors (the supplier throwing nine times) or tolerate them
     errors_fine = result["errors"] == 0 or bool(chk.get("errors_ok"))
-    if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
+    # failures a step provokes on purpose count also when they were handled (a circuit breaker's fallback)
+    provoked = result["errors"] + result.get("handled_errors", 0)
+    if chk.get("min_errors") and provoked < chk["min_errors"]:
         errors_fine = False
     # test_run: the Citrus test the step asks for passes with `camel test run` (run last: the app is stopped while the
     # test runs, and the checks above are on the app the model left running)
@@ -931,6 +952,10 @@ def score(step, project, cfg, mcp, name, before, log=None):
     if chk.get("min_errors") and result["errors_old_slice"] < chk["min_errors"]:
         old_fine = False
     result["ok_old_slice"] = result["ok_final"] and old_fine
+    # ok with the rule before Nov 11 2026, when handled failures counted as errors
+    with_handled = result.setdefault("errors_with_handled", result["errors"])
+    result["ok_with_handled"] = result["ok_final"] and (with_handled == 0 or bool(chk.get("errors_ok"))) and not (
+        chk.get("min_errors") and provoked < chk["min_errors"])
     # ok_lastwrite: the end state is right and the model's last version logged no errors; the errors of attempts it
     # fixed on the way do not count (they do in ok). Without a write in the step it is the same as ok
     last = before.get("last_write")
@@ -946,8 +971,8 @@ def score(step, project, cfg, mcp, name, before, log=None):
             # its reload (r28l-6 connect-http-client s1). Its record reached the error file after the write's
             # snapshot, as the app writes that file about once a second. A record that does not tell when its exchange
             # began counts, and so do the ERROR records of the log
-            newest = records_since(errs, before.get("last_write_sent") if FAST else None,
-                                   max(last[1], before.get("error_count", 0)))
+            newest = [e for e in records_since(errs, before.get("last_write_sent") if FAST else None,
+                                               max(last[1], before.get("error_count", 0))) if not is_handled(e)]
             old = [began_before(e, before.get("last_write_at"), before.get("last_write_spare", 0.5)) for e in newest]
             older = sum(old)
             after += len(newest) - older
@@ -962,7 +987,7 @@ def score(step, project, cfg, mcp, name, before, log=None):
     for k in ("last_write_sent", "last_write_at", "last_write_spare"):
         result[k] = before.get(k)
     lastwrite_fine = after == 0 or bool(chk.get("errors_ok"))
-    if chk.get("min_errors") and result["errors"] < chk["min_errors"]:
+    if chk.get("min_errors") and provoked < chk["min_errors"]:
         lastwrite_fine = False
     result["ok_lastwrite"] = result["ok_final"] and lastwrite_fine
     result["log_sample"] = [msg(l) for l in recent][:5]

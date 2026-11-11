@@ -1029,6 +1029,134 @@ EXAMPLES.append({
     ]})
 
 
+# ---------------------------------------------------------------- route/batch-file (streaming split, CSV per line, rejects)
+# Wave 2 (Nov 11 2026): no example used a streaming split. Two settlement files of 5000 payments; 2026-11-10 has two
+# amounts that are not a number (N/A, 1O.50). The provider route copies samples/ into inbox/ (noop: true), so every
+# reload processes both files again: the rejects file then holds the two lines more than once, hence a search, not the
+# whole file. The amounts must be compared as numbers: as text "1633.36" >= "500" is false and "60.00" >= "500" true.
+# A correct step 1 throws on the bad lines (the amount does not convert), so step 1 allows errors. From step 2 the doTry
+# handles them, and a handled failure is not an error (Claus, Nov 11 2026).
+BF = "batch-file.camel.yaml"
+BF_PROVIDER = """- route:
+    id: provider
+    from:
+      uri: file
+      parameters:
+        directoryName: samples
+        noop: true
+        sortBy: "file:name"
+      steps:
+        - to:
+            uri: file
+            parameters:
+              directoryName: inbox
+
+"""
+BF_FROM = """- route:
+    id: settlement
+    from:
+      uri: file
+      parameters:
+        directoryName: inbox
+        include: ".*\\\\.csv"
+        move: done
+        moveFailed: failed
+        sortBy: "file:name"
+      steps:
+        - log:
+            message: "Settlement ${file:name} received: ${file:size} bytes"
+"""
+BF_SPLIT = """        - split:
+            expression:
+              tokenize:
+                token: "\\n"
+                skipFirst: true
+            streaming: true
+            steps:
+"""
+BF_READ = """                    - unmarshal:
+                        csv:
+                          header: "paymentId,orderId,customer,amount,currency"
+                          useMaps: true
+                    - setBody:
+                        expression:
+                          simple:
+                            expression: "${body[0]}"
+                    - setVariable:
+                        name: amount
+                        expression:
+                          simple:
+                            expression: "${body[amount]}"
+                            resultType: java.math.BigDecimal
+                    - filter:
+                        expression:
+                          simple:
+                            expression: "${variable.amount} >= 500"
+                        steps:
+                          - log:
+                              message: "Large payment ${body[paymentId]} for ${body[orderId]}: ${variable.amount} EUR"
+"""
+BF_LINE = """              - setVariable:
+                  name: line
+                  expression:
+                    simple:
+                      expression: "${body}"
+"""
+BF_TRY = """              - doTry:
+                  steps:
+""" + BF_READ + """                  doCatch:
+                    - exception:
+                        - java.lang.Exception
+                      steps:
+                        - log:
+                            message: "Rejected from ${file:name}: ${variable.line}"
+                        - setBody:
+                            expression:
+                              simple:
+                                expression: "${variable.line}"
+                        - to:
+                            uri: file
+                            parameters:
+                              directoryName: rejects
+                              fileName: "${file:name}"
+                              fileExist: Append
+                              appendChars: "\\\\n"
+"""
+BF_DONE = """              - filter:
+                  expression:
+                    simple:
+                      expression: "${exchangeProperty.CamelSplitComplete}"
+                  steps:
+                    - log:
+                        message: "Settlement ${file:name} done: ${exchangeProperty.CamelSplitSize} lines"
+"""
+# step 1 without the try: the steps of BF_READ one level up, directly in the split
+bf_s1 = BF_PROVIDER + BF_FROM
+bf_s2 = BF_PROVIDER + BF_FROM + BF_SPLIT + "".join(l[6:] + "\n" for l in BF_READ.splitlines())
+bf_s3 = BF_PROVIDER + BF_FROM + BF_SPLIT + BF_LINE + BF_TRY
+bf_s4 = bf_s3 + BF_DONE
+EXAMPLES.append({
+    "name": "route-batch-file", "route_file": BF, "props_file": "application.properties", "wait_seconds": 10,
+    "seed": "route-batch-file", "steps_dir": NEW, "clear_dirs": ["inbox", "rejects"],
+    "initial": {BF: bf_s1, "application.properties": DATA_DIR + "inbox,rejects\n"},
+    "steps": [
+        {"request": "Split each settlement file into its lines with streaming, as a file can be large, and skip the header line. Read each line with the CSV data format into a map with the columns paymentId, orderId, customer, amount and currency, and log each payment of 500 EUR or more as \"Large payment <paymentId> for <orderId>: <amount> EUR\", and nothing for the other payments.",
+         "check": {"file_regex": "streaming: true",
+                   "log_regex": ["Large payment PAY-000434 for ORD-1434: 1633.36 EUR", "Large payment PAY-000198 for ORD-1198: 659.64 EUR",
+                                 "Large payment PAY-009672 for ORD-10672: 891.29 EUR"],
+                   "log_not_regex": "Large payment PAY-\\d+ for ORD-\\d+: ([1-4]\\d\\d|\\d{1,2})\\.\\d\\d EUR", "errors_ok": True},
+         "reference": {BF: bf_s2}},
+        {"request": "Two lines of settlement-2026-11-10.csv have an amount that is not a number. Append each line that cannot be read, as it is in the file, to rejects/<file name>, one per line, and go on with the next line, so that a file with such lines still ends in inbox/done.",
+         "check": {"files": {"rejects/settlement-2026-11-10.csv": "PAY-006117,ORD-7117,C-319,N/A,EUR\\r?\\nPAY-008840,ORD-9840,C-207,1O\\.50,EUR",
+                             "inbox/done/settlement-2026-11-10.csv": "PAY-009999"},
+                   "log_regex": "Large payment PAY-009672 for ORD-10672: 891.29 EUR"},
+         "reference": {BF: bf_s3}},
+        {"request": "When the whole file has been read, log \"Settlement <file name> done: <lines> lines\" with the number of payment lines in the file, the header not counted.",
+         "check": {"log_regex": ["Settlement settlement-2026-11-09.csv done: 5000 lines", "Settlement settlement-2026-11-10.csv done: 5000 lines"]},
+         "reference": {BF: bf_s4}},
+    ]})
+
+
 # ---------------------------------------------------------------- contracts/rest-code-first (REST DSL code first, json binding, probes)
 # The answers are Java objects written by the json binding; error answers are JSON text (skipBindingOnErrorCode). Step 2
 # adds a Java record (a restart compiles it); step 3 needs camel-openapi-java, which camel run does not add by itself
