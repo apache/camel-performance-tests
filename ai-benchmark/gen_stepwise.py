@@ -15,7 +15,9 @@ import datetime, json, os, shutil, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 STEPS_DIR = os.path.join(HERE, "steps-ladder")
 # Claus, Nov 2: four examples passed every step in all 21 runs of r23 to r25; they run once a week, in steps-weekly/,
-# so the nightly ladder has time for the new examples
+# so the nightly ladder has time for the new examples. Claus, Nov 11: six more, whose every step passed in 95% or more
+# of the 26 runs of r28 to r31 (connect-stock-api, contracts-openapi-client, fail-well-circuit-breaker,
+# transform-csv-to-json, transform-json-transform, transform-xslt: 20 steps, about 18 of the 37 minutes of a round)
 WEEKLY = "steps-weekly"
 # CAMEL-25670: dev mode with --source-dir reloads the routes for every file they write into the project's own folders
 # (connect-file-processing reloaded every 2 s, r13); camel.jbang.dataDir leaves those folders out (Camel 4.24)
@@ -160,7 +162,7 @@ def jq(expr):
     return ("        - transform:\n            expression:\n              jq:\n                expression: \"" + expr + "\"\n                resultType: java.lang.String\n")
 JQ_FULL = "{order: .orderId, country: .country, pick: [.lines[] | {sku: .sku, qty: .qty}]}"
 EXAMPLES.append({
-    "name": "transform-json-transform", "route_file": JT, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "transform-json-transform", "steps_dir": WEEKLY, "route_file": JT, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "transform-json-transform",
     "initial": {JT: route("json-transform", TIMER1, BODY_FILE + log("Order: ${body}")), "application.properties": ""},
     "steps": [
@@ -213,7 +215,7 @@ XSL_V3 = XSL_HEAD + "    <packingSlip order=\"{@id}\" customer=\"{customer}\" co
 XSLT_STEP = "        - to:\n            uri: xslt\n            parameters:\n              resourceUri: packing-slip.xsl\n"
 xs_route = route("xslt", FILE_INBOX, XSLT_STEP + log("Packing slip: ${body}"))
 EXAMPLES.append({
-    "name": "transform-xslt", "route_file": XS, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "transform-xslt", "steps_dir": WEEKLY, "route_file": XS, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "transform-xslt", "exclude_seeds": ["packing-slip.xsl"],
     "initial": {XS: route("xslt", FILE_INBOX, log("Supplier order: ${body}")), "application.properties": ""},
     "steps": [
@@ -328,7 +330,7 @@ cbr_s2 = route("stock-check", TIMER_STOCK, CALL + log("Stock check ${header.Came
 cbr_s3 = route("stock-check", TIMER_STOCK, breaker("") + log("Stock check ${header.CamelTimerCounter}: ${body}"), SUPPLIER_FAIL)
 cbr_s4 = route("stock-check", TIMER_STOCK, breaker(R4J) + log("Stock check ${header.CamelTimerCounter} (breaker ${exchangeProperty.CamelCircuitBreakerState}): ${body}"), SUPPLIER_FAIL)
 EXAMPLES.append({
-    "name": "fail-well-circuit-breaker", "route_file": CBR, "props_file": "application.properties", "wait_seconds": 14,
+    "name": "fail-well-circuit-breaker", "steps_dir": WEEKLY, "route_file": CBR, "props_file": "application.properties", "wait_seconds": 14,
     "initial": {CBR: cbr_s1, "application.properties": ""},
     "steps": [
         {"request": "Make the supplier route throw a java.net.ConnectException \"supplier unreachable\" when the timer counter (header CamelTimerCounter) is 4 to 12, and answer with the stock otherwise; expect nine stack traces in the log.",
@@ -401,7 +403,7 @@ csv_s3 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(log("In
 csv_s4 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR + MARSHAL_JSON_IN + log("Invoice ${variable.invoiceId}: ${body}", I)))
 csv_s5 = route("csv-to-json", FILE_INBOX_CSV, UNMARSHAL_CSV + split_body(CSV_HDR + MARSHAL_JSON_IN + log("Invoice ${variable.invoiceId}: ${body}", I) + TO_OUTBOX))
 EXAMPLES.append({
-    "name": "transform-csv-to-json", "route_file": CSV, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "transform-csv-to-json", "steps_dir": WEEKLY, "route_file": CSV, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "transform-csv-to-json",
     "initial": {CSV: csv_s1, "application.properties": DATA_DIR + "inbox,outbox\n"},
     "steps": [
@@ -634,7 +636,7 @@ sa_s3 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku")
 sa_s4 = REST_BOTH + "\n" + ALL_STOCK + "\n" + route("one-sku", DIRECT("one-sku"), log("Stock asked for ${header.sku}") + const("resource:file:stock.json") + GROOVY_SKU + NOT_FOUND + CT_JSON)
 GET = lambda path, status=200, rx=None: {"method": "GET", "url": "http://localhost:8080" + path, "expect_status": status, **({"body_regex": rx} if rx else {})}
 EXAMPLES.append({
-    "name": "connect-stock-api", "route_file": SA, "props_file": "application.properties", "wait_seconds": 4,
+    "name": "connect-stock-api", "steps_dir": WEEKLY, "route_file": SA, "props_file": "application.properties", "wait_seconds": 4,
     "seed": "connect-stock-api",
     "initial": {SA: sa_s1, "application.properties": PORT_PROPS},
     "steps": [
@@ -769,7 +771,7 @@ ON_409 = ("- onException:\n    exception:\n      - org.apache.camel.http.base.Ht
           "    steps:\n      - log:\n          loggingLevel: WARN\n          message: \"${variable.orderId}: ${variable.sku} not reserved, the stock API answered ${exception.statusCode}: ${exception.responseBody}\"\n\n")
 oc_s4 = ON_409 + oc_s3
 EXAMPLES.append({
-    "name": "contracts-openapi-client", "route_file": OC, "props_file": "application.properties", "wait_seconds": 8,
+    "name": "contracts-openapi-client", "steps_dir": WEEKLY, "route_file": OC, "props_file": "application.properties", "wait_seconds": 8,
     "seed": "contracts-openapi-client",
     "peer": {"seed": "_peer-openapi-server", "project": "stepwise-ladder/_peer-openapi-server", "name": "stock-api-peer"},
     "initial": {OC: oc_s1, "application.properties": OC_PROPS},
